@@ -37,6 +37,18 @@
 - 대표: 240×240 PNG
 - 탭: 96×74 PNG
 
+## 배포 (Render, 암호 잠금)
+
+이 앱은 네이티브 모듈(`@napi-rs/canvas`)과 파일시스템을 써서 **Cloudflare Pages/정적 호스팅에선 동작하지 않습니다.** 상시 Node 서버가 도는 [Render](https://render.com) 무료 플랜을 권장합니다.
+
+1. Render 대시보드 → **New + → Blueprint** → 이 깃허브 저장소 선택 (`render.yaml` 자동 인식).
+2. 환경변수 입력:
+   - `OPENAI_API_KEY` (필수)
+   - `BASIC_AUTH_USER`, `BASIC_AUTH_PASS` (암호 잠금 — 둘 다 채우면 사이트·API 전체가 잠김)
+3. 배포 후 URL 접속 시 브라우저가 아이디/비밀번호를 묻습니다.
+
+> 암호는 `middleware.ts`의 HTTP 기본 인증으로 처리됩니다. `BASIC_AUTH_*`를 비워두면 인증 없이 열립니다(로컬 개발용). **공개 배포 시 반드시 채우세요 — 안 그러면 누구나 접속해 OpenAI 크레딧을 소모할 수 있습니다.**
+
 ## 스택
 
 Next.js 15 · TypeScript · Tailwind · @napi-rs/canvas · JSZip · OpenAI/Gemini SDK

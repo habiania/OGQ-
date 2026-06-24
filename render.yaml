@@ -1,0 +1,21 @@
+# Render 배포 설정 (무료 Node 웹 서비스)
+# 대시보드에서 New + > Blueprint 로 이 저장소 연결하면 자동 인식됨.
+services:
+  - type: web
+    name: ogq-sticker-maker
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false # 대시보드에서 직접 입력
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: BASIC_AUTH_USER
+        sync: false
+      - key: BASIC_AUTH_PASS
+        sync: false
+      - key: NODE_VERSION
+        value: "22"
