@@ -1,5 +1,6 @@
 import OpenAI, { toFile } from "openai";
 import { GoogleGenAI } from "@google/genai";
+import { sanitizePng } from "./png";
 
 export type ProviderId = "openai" | "gemini";
 
@@ -34,7 +35,7 @@ class OpenAIProvider implements ImageProvider {
     });
     const b64 = res.data?.[0]?.b64_json;
     if (!b64) throw new Error("OpenAI 이미지 응답이 비어 있습니다.");
-    return Buffer.from(b64, "base64");
+    return sanitizePng(Buffer.from(b64, "base64"));
   }
 
   generateCharacter(photo: Buffer, mime: string, prompt: string) {
@@ -67,7 +68,7 @@ class GeminiProvider implements ImageProvider {
     const imgPart = cand?.content?.parts?.find((p: any) => p.inlineData?.data);
     const data = imgPart?.inlineData?.data;
     if (!data) throw new Error("Gemini 이미지 응답이 비어 있습니다.");
-    return Buffer.from(data, "base64");
+    return sanitizePng(Buffer.from(data, "base64"));
   }
 
   generateCharacter(photo: Buffer, mime: string, prompt: string) {
