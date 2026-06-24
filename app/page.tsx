@@ -46,6 +46,22 @@ export default function Home() {
     setPreview(f ? URL.createObjectURL(f) : "");
   }
 
+  // 업로드 전 브라우저에서 축소 (긴 변 max px). 폰 원본 사진 용량/한도 문제 방지.
+  async function downscale(f: File, max = 1280): Promise<Blob> {
+    const bitmap = await createImageBitmap(f);
+    const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    return new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("이미지 변환 실패"))), "image/jpeg", 0.9)
+    );
+  }
+
   function reset() {
     setPhase("idle");
     setJobId("");
@@ -64,8 +80,9 @@ export default function Home() {
     try {
       // 1) 캐릭터 베이스 생성
       setPhase("character");
+      const resized = await downscale(file);
       const fd = new FormData();
-      fd.append("photo", file);
+      fd.append("photo", resized, "photo.jpg");
       fd.append("provider", provider);
       fd.append("style", styleId);
       const cRes = await fetch("/api/character", { method: "POST", body: fd });
