@@ -91,20 +91,36 @@ export default function Home() {
       setJobId(cData.jobId);
       setCharacter(cData.characterB64);
 
-      // 2) 24종 스티커 순차 생성
+      // 2) 24종 스티커 생성 (병렬 3개 + 1회 재시도)
       setPhase("stickers");
       const collected: StickerItem[] = [];
-      for (let i = 0; i < EMOTIONS.length; i++) {
+      const CONCURRENCY = 3;
+
+      const genOne = async (i: number, retry = true): Promise<StickerItem> => {
         const sRes = await fetch("/api/sticker", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jobId: cData.jobId, provider, emotionIndex: i }),
         });
         const sData = await sRes.json();
-        if (!sRes.ok) throw new Error(sData.error || `${i + 1}번 스티커 생성 실패`);
-        collected.push({ n: sData.n, ko: sData.ko, b64: sData.stickerB64 });
-        setStickers([...collected]);
-      }
+        if (!sRes.ok) {
+          if (retry) return genOne(i, false); // 일시적 실패 1회 재시도
+          throw new Error(sData.error || `${i + 1}번 스티커 생성 실패`);
+        }
+        return { n: sData.n, ko: sData.ko, b64: sData.stickerB64 };
+      };
+
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < EMOTIONS.length) {
+          const i = cursor++;
+          const item = await genOne(i);
+          collected.push(item);
+          collected.sort((a, b) => a.n - b.n); // 완료 순서 무관하게 번호순 표시
+          setStickers([...collected]);
+        }
+      };
+      await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
       // 3) 검수 + 메타 + ZIP
       setPhase("finalizing");

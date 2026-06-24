@@ -76,7 +76,8 @@ export async function composeSticker(art: Buffer, opts: ComposeOpts = {}): Promi
   ctx.drawImage(img, dx, dy, dw, dh);
 
   if (opts.caption) {
-    drawCaption(ctx, opts.caption, W, H - captionH / 2 - 8);
+    // 캡션은 캔버스 가로 중앙(W/2), 하단 밴드 중앙에 배치
+    drawCaption(ctx, opts.caption, W / 2, H - captionH / 2, W - margin * 2, captionH);
   }
 
   return canvas.toBuffer("image/png");
@@ -86,16 +87,22 @@ function drawCaption(
   ctx: ReturnType<ReturnType<typeof createCanvas>["getContext"]>,
   text: string,
   cx: number,
-  cy: number
+  cy: number,
+  maxW: number,
+  maxH: number
 ) {
-  // 길이에 따라 폰트 크기 자동 조정
-  let size = 92;
-  if (text.length >= 4) size = 72;
-  if (text.length >= 6) size = 56;
-  ctx.font = `bold ${size}px "${FONT_FAMILY}"`;
+  // 폰트 크기를 글자 수 기준으로 잡되, 실제 폭을 측정해 넘치면 줄여서 잘림 방지
+  let size = text.length <= 2 ? 96 : text.length <= 3 ? 84 : text.length <= 4 ? 70 : 58;
+  // 외곽선까지 포함한 폭이 maxW 안에 들어올 때까지 축소
+  for (; size > 24; size -= 2) {
+    ctx.font = `bold ${size}px "${FONT_FAMILY}"`;
+    const w = ctx.measureText(text).width + size * 0.28; // 외곽선 두께 여유
+    if (w <= maxW && size * 1.2 <= maxH) break;
+  }
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
+  ctx.miterLimit = 2;
   // 흰색 외곽선(두껍게) → 어떤 배경에서도 가독성
   ctx.strokeStyle = "#ffffff";
   ctx.lineWidth = Math.round(size * 0.28);
