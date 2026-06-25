@@ -86,16 +86,18 @@ class GeminiProvider implements ImageProvider {
   }
 }
 
-export function getProvider(id: ProviderId): ImageProvider {
+// apiKey가 주어지면(화면 입력) 그것을 우선 사용하고, 없으면 .env.local 값으로 폴백.
+export function getProvider(id: ProviderId, apiKey?: string): ImageProvider {
+  const key = (apiKey && apiKey.trim()) || undefined;
   if (id === "openai") {
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) throw new Error("OPENAI_API_KEY 가 설정되지 않았습니다 (.env.local).");
-    return new OpenAIProvider(key);
+    const k = key || process.env.OPENAI_API_KEY;
+    if (!k) throw new Error("OpenAI API 키가 없습니다. 화면의 키 입력란에 입력하거나 .env.local에 설정하세요.");
+    return new OpenAIProvider(k);
   }
   if (id === "gemini") {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) throw new Error("GEMINI_API_KEY 가 설정되지 않았습니다 (.env.local).");
-    return new GeminiProvider(key);
+    const k = key || process.env.GEMINI_API_KEY;
+    if (!k) throw new Error("Gemini API 키가 없습니다. 화면의 키 입력란에 입력하거나 .env.local에 설정하세요.");
+    return new GeminiProvider(k);
   }
   throw new Error(`알 수 없는 provider: ${id}`);
 }

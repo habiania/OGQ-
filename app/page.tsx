@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { STYLES, getItems, KAKAO_SPEC, type GenMode } from "@/lib/constants";
 
 type Provider = "openai" | "gemini";
@@ -26,6 +26,22 @@ export default function Home() {
   const [mode, setMode] = useState<GenMode>("ogq");
   const [count, setCount] = useState<number>(24); // 카카오 전용 (24/32/40)
   const [provider, setProvider] = useState<Provider>("openai");
+  const [openaiKey, setOpenaiKey] = useState<string>("");
+  const [geminiKey, setGeminiKey] = useState<string>("");
+
+  // 키는 브라우저 localStorage에만 보관(개인용) — 새로고침해도 유지, 서버 코드엔 저장 안 함
+  useEffect(() => {
+    setOpenaiKey(localStorage.getItem("ogq_openai_key") || "");
+    setGeminiKey(localStorage.getItem("ogq_gemini_key") || "");
+  }, []);
+  useEffect(() => {
+    localStorage.setItem("ogq_openai_key", openaiKey);
+  }, [openaiKey]);
+  useEffect(() => {
+    localStorage.setItem("ogq_gemini_key", geminiKey);
+  }, [geminiKey]);
+
+  const apiKey = provider === "openai" ? openaiKey : geminiKey;
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>("");
   const [styleId, setStyleId] = useState<string>("cute");
@@ -56,7 +72,7 @@ export default function Home() {
       const res = await fetch("/api/sticker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, provider, emotionIndex: n - 1, mode, count }),
+        body: JSON.stringify({ jobId, provider, emotionIndex: n - 1, mode, count, apiKey }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "재생성 실패");
@@ -115,6 +131,7 @@ export default function Home() {
       fd.append("provider", provider);
       fd.append("style", styleId);
       fd.append("mode", mode);
+      fd.append("apiKey", apiKey);
       const cRes = await fetch("/api/character", { method: "POST", body: fd });
       const cData = await cRes.json();
       if (!cRes.ok) throw new Error(cData.error || "캐릭터 생성 실패");
@@ -130,7 +147,7 @@ export default function Home() {
         const sRes = await fetch("/api/sticker", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId: cData.jobId, provider, emotionIndex: i, mode, count }),
+          body: JSON.stringify({ jobId: cData.jobId, provider, emotionIndex: i, mode, count, apiKey }),
         });
         const sData = await sRes.json();
         if (!sRes.ok) {
@@ -157,7 +174,7 @@ export default function Home() {
       const fRes = await fetch("/api/finalize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: cData.jobId, provider, styleId, subject, mode, count }),
+        body: JSON.stringify({ jobId: cData.jobId, provider, styleId, subject, mode, count, apiKey }),
       });
       const fData = await fRes.json();
       if (!fRes.ok) throw new Error(fData.error || "마무리 처리 실패");
@@ -294,10 +311,29 @@ export default function Home() {
                         : "border-zinc-700 text-zinc-400"
                     }`}
                   >
-                    {p === "openai" ? "OpenAI (투명배경 ✓)" : "Gemini"}
+                    {p === "openai" ? "GPT (OpenAI · 투명배경 ✓)" : "Gemini"}
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* 선택된 제공자의 API 키 입력 (localStorage에 저장, 서버엔 보관 안 함) */}
+            <div>
+              <label className="mb-1 block text-xs text-zinc-400">
+                {provider === "openai" ? "OpenAI API 키" : "Gemini API 키"}
+                <span className="ml-1 text-[10px] text-zinc-600">브라우저에만 저장 · 비우면 .env.local 사용</span>
+              </label>
+              <input
+                type="password"
+                autoComplete="off"
+                value={provider === "openai" ? openaiKey : geminiKey}
+                disabled={busy}
+                onChange={(e) =>
+                  provider === "openai" ? setOpenaiKey(e.target.value) : setGeminiKey(e.target.value)
+                }
+                placeholder={provider === "openai" ? "sk-..." : "AIza..."}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs text-zinc-400">주제/이름 (제목 자동생성용, 선택)</label>

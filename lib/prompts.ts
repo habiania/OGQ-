@@ -1,10 +1,16 @@
 import { Emotion, StyleOption } from "./constants";
 
-// 해부학 오류·헛것 생성을 막는 공통 제약 (다리 5개, 손가락 과다, 안 시킨 새/소품 등 방지)
-const ANATOMY_RULES = [
+// 모든 이미지 생성 프롬프트에 공통 적용되는 규칙
+// (1) 해부학 오류·헛것 방지  (2) 원본성/저작권 회피 — 모든 프롬프트에 항상 포함
+const COMMON_RULES = [
+  // 해부학
   `Anatomically correct: exactly one head, two arms, two legs (or the natural number of limbs for the subject) — never extra, duplicated, fused, or floating limbs, hands, or fingers.`,
   `A single clean character only. Do NOT add any extra creatures, animals, birds, hats, crowns, accessories, props, or objects that are not part of the original subject.`,
   `No deformed, melted, or mismatched body parts. Symmetrical and tidy.`,
+  // 원본성 / 저작권 회피 (항상 포함)
+  `Create an original character design.`,
+  `Do not imitate or resemble any existing copyrighted character, franchise, mascot, or distinctive art style.`,
+  `Maintain a unique and original visual identity.`,
 ].join(" ");
 
 // 캐릭터 베이스 생성 프롬프트 (사진 → 스타일화 캐릭터)
@@ -15,7 +21,7 @@ export function characterPrompt(style: StyleOption): string {
     `Full body, centered, facing forward, friendly neutral expression, standing in a simple natural pose.`,
     `Clean simple design suitable for a messenger sticker. No text. No background, fully transparent.`,
     `Keep the subject's key identifying features (overall shape, main colors, distinctive marks).`,
-    ANATOMY_RULES,
+    COMMON_RULES,
   ].join(" ");
 }
 
@@ -26,7 +32,7 @@ export function emotionPrompt(emotion: Emotion): string {
     `Do not change the character's design, hairstyle, body shape, colors, or the number of limbs.`,
     `Only change the expression and pose to: ${emotion.expr}.`,
     `Keep it centered, simple, sticker-friendly. No text. Fully transparent background.`,
-    ANATOMY_RULES,
+    COMMON_RULES,
   ].join(" ");
 }
 
@@ -40,7 +46,7 @@ export function kakaoCharacterPrompt(style: StyleOption): string {
     `Style hint: ${style.prompt}.`,
     `Full body, centered, facing forward, friendly cheerful expression, simple bold clean lines, flat colors.`,
     `No text. No background, fully transparent.`,
-    ANATOMY_RULES,
+    COMMON_RULES,
   ].join(" ");
 }
 
@@ -50,6 +56,6 @@ export function kakaoItemPrompt(item: Emotion): string {
     `Reinterpret pose and expression with STRONG exaggeration for a KakaoTalk emoticon: ${item.expr}.`,
     `Make the emotion and hand gestures large and dramatic, clearly readable even at a tiny 100px size.`,
     `Bold simple outline, flat colors, dynamic motion lines where it helps. No text. Fully transparent background.`,
-    ANATOMY_RULES,
+    COMMON_RULES,
   ].join(" ");
 }

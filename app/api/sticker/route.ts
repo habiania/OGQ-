@@ -4,18 +4,20 @@ import { getItems, GenMode, KAKAO_SPEC } from "@/lib/constants";
 import { emotionPrompt, kakaoItemPrompt } from "@/lib/prompts";
 import { readFile, saveFile } from "@/lib/storage";
 import { composeSticker } from "@/lib/imaging";
+import { humanizeError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
-    const { jobId, provider: providerId, emotionIndex, mode = "ogq", count = 24 } = (await req.json()) as {
+    const { jobId, provider: providerId, emotionIndex, mode = "ogq", count = 24, apiKey } = (await req.json()) as {
       jobId: string;
       provider: ProviderId;
       emotionIndex: number;
       mode?: GenMode;
       count?: number;
+      apiKey?: string;
     };
 
     const item = getItems(mode, count)[emotionIndex];
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "요청 값이 올바르지 않습니다." }, { status: 400 });
     }
 
-    const provider = getProvider(providerId);
+    const provider = getProvider(providerId, apiKey);
     const character = await readFile(jobId, "character.png");
 
     // 같은 캐릭터로 표정/포즈만 변형 (대사 텍스트 없음)
@@ -50,6 +52,6 @@ export async function POST(req: NextRequest) {
       stickerB64: `data:image/png;base64,${sticker.toString("base64")}`,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "스티커 생성 실패" }, { status: 500 });
+    return NextResponse.json({ error: humanizeError(e) }, { status: 500 });
   }
 }

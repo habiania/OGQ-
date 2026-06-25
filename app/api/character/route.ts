@@ -3,6 +3,7 @@ import { getProvider, ProviderId } from "@/lib/providers";
 import { STYLES, GenMode } from "@/lib/constants";
 import { characterPrompt, kakaoCharacterPrompt } from "@/lib/prompts";
 import { newJobId, ensureJob, saveFile } from "@/lib/storage";
+import { humanizeError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -14,12 +15,13 @@ export async function POST(req: NextRequest) {
     const providerId = (form.get("provider") as string) as ProviderId;
     const styleId = form.get("style") as string;
     const mode = ((form.get("mode") as string) || "ogq") as GenMode;
+    const apiKey = (form.get("apiKey") as string) || undefined;
 
     if (!photo) return NextResponse.json({ error: "사진이 없습니다." }, { status: 400 });
     const style = STYLES.find((s) => s.id === styleId);
     if (!style) return NextResponse.json({ error: "스타일이 올바르지 않습니다." }, { status: 400 });
 
-    const provider = getProvider(providerId);
+    const provider = getProvider(providerId, apiKey);
     const buf = Buffer.from(await photo.arrayBuffer());
     const mime = photo.type || "image/png";
 
@@ -37,6 +39,6 @@ export async function POST(req: NextRequest) {
       nativeTransparency: provider.nativeTransparency,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "캐릭터 생성 실패" }, { status: 500 });
+    return NextResponse.json({ error: humanizeError(e) }, { status: 500 });
   }
 }

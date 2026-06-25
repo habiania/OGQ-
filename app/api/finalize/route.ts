@@ -6,13 +6,14 @@ import { makeMain, makeTab, makeThumbnail, inspectPng } from "@/lib/imaging";
 import { validate, validateKakao, PngInfo } from "@/lib/validate";
 import { generateMeta } from "@/lib/meta";
 import { buildZip, buildKakaoZip } from "@/lib/zip";
+import { humanizeError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
-    const { jobId, provider: providerId, styleId, subject, title, mode = "ogq", count = 24 } =
+    const { jobId, provider: providerId, styleId, subject, title, mode = "ogq", count = 24, apiKey } =
       (await req.json()) as {
         jobId: string;
         provider: ProviderId;
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
         title?: string;
         mode?: GenMode;
         count?: number;
+        apiKey?: string;
       };
 
     const style = STYLES.find((s) => s.id === styleId);
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "요청 값이 올바르지 않습니다." }, { status: 400 });
     }
 
-    const provider = getProvider(providerId);
+    const provider = getProvider(providerId, apiKey);
     const removeWhite = !provider.nativeTransparency;
     const character = await readFile(jobId, "character.png");
 
@@ -77,6 +79,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ report, meta, downloadUrl: `/api/download?jobId=${jobId}` });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "마무리 처리 실패" }, { status: 500 });
+    return NextResponse.json({ error: humanizeError(e) }, { status: 500 });
   }
 }
