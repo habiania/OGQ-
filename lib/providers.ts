@@ -49,26 +49,58 @@ class OpenAIProvider implements ImageProvider {
 }
 
 // ---------------- Gemini (2.5 flash image) ----------------
+// 키/리전마다 사용 가능한 이미지 생성 모델명이 달라서 후보를 순서대로 시도.
+// 한 번 성공한 모델명은 모듈 레벨에 캐시해 이후 요청에서 재사용.
+const GEMINI_IMAGE_MODELS = [
+  "gemini-2.5-flash-image-preview",
+  "gemini-2.5-flash-image",
+  "gemini-2.0-flash-preview-image-generation",
+  "gemini-2.0-flash-exp-image-generation",
+];
+let cachedGeminiModel: string | null = null;
+
 class GeminiProvider implements ImageProvider {
   id: ProviderId = "gemini";
   nativeTransparency = false; // 투명배경 미보장 → 후처리로 보정
   private client: GoogleGenAI;
-  private model = "gemini-2.5-flash-image-preview";
 
   constructor(apiKey: string) {
     this.client = new GoogleGenAI({ apiKey });
   }
 
-  private async run(parts: any[]): Promise<Buffer> {
-    const res = await this.client.models.generateContent({
-      model: this.model,
+  private async generateWith(model: string, parts: any[]) {
+    return this.client.models.generateContent({
+      model,
       contents: [{ role: "user", parts }],
+      // 이미지 출력 모달리티 명시 (미지정 시 텍스트만 반환될 수 있음)
+      config: { responseModalities: ["IMAGE", "TEXT"] as any },
     });
-    const cand = res.candidates?.[0];
-    const imgPart = cand?.content?.parts?.find((p: any) => p.inlineData?.data);
-    const data = imgPart?.inlineData?.data;
-    if (!data) throw new Error("Gemini 이미지 응답이 비어 있습니다.");
-    return sanitizePng(Buffer.from(data, "base64"));
+  }
+
+  private async run(parts: any[]): Promise<Buffer> {
+    // 캐시된 모델 우선, 없으면 후보 전체 시도
+    const candidates = cachedGeminiModel
+      ? [cachedGeminiModel, ...GEMINI_IMAGE_MODELS.filter((m) => m !== cachedGeminiModel)]
+      : GEMINI_IMAGE_MODELS;
+
+    let lastErr: any = null;
+    for (const model of candidates) {
+      try {
+        const res = await this.generateWith(model, parts);
+        const imgPart = res.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData?.data);
+        const data = imgPart?.inlineData?.data;
+        if (!data) throw new Error("Gemini 이미지 응답이 비어 있습니다.");
+        cachedGeminiModel = model; // 성공 모델 기억
+        return sanitizePng(Buffer.from(data, "base64"));
+      } catch (e: any) {
+        lastErr = e;
+        const msg = (e?.message || "").toLowerCase();
+        // 모델 없음(404/NOT_FOUND)이면 다음 후보로, 그 외 오류면 즉시 중단
+        if (msg.includes("not found") || msg.includes("404") || msg.includes("not supported")) continue;
+        throw e;
+      }
+    }
+    throw lastErr || new Error("사용 가능한 Gemini 이미지 모델을 찾지 못했습니다.");
   }
 
   generateCharacter(photo: Buffer, mime: string, prompt: string) {
