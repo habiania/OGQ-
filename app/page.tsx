@@ -38,8 +38,32 @@ export default function Home() {
   const [downloadUrl, setDownloadUrl] = useState<string>("");
   const [error, setError] = useState<string>("");
 
+  const [regenN, setRegenN] = useState<number | null>(null);
   const busy = phase !== "idle" && phase !== "done";
   const done = stickers.length;
+
+  // 이상하게 나온 스티커 1장만 다시 생성 (다리 5개 등)
+  async function regenerate(n: number) {
+    if (!jobId || regenN !== null) return;
+    setRegenN(n);
+    setError("");
+    try {
+      const res = await fetch("/api/sticker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, provider, emotionIndex: n - 1 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "재생성 실패");
+      setStickers((prev) =>
+        prev.map((s) => (s.n === n ? { n: data.n, ko: data.ko, b64: data.stickerB64 } : s))
+      );
+    } catch (e: any) {
+      setError(e?.message || "재생성 중 오류");
+    } finally {
+      setRegenN(null);
+    }
+  }
 
   function pickFile(f: File | null) {
     setFile(f);
@@ -271,9 +295,23 @@ export default function Home() {
           <h2 className="mb-3 text-sm font-semibold text-zinc-300">스티커 ({done}/24)</h2>
           <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
             {stickers.map((s) => (
-              <div key={s.n} className="checker rounded-lg p-1">
+              <div key={s.n} className="group checker relative rounded-lg p-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={s.b64} alt={s.ko} className="aspect-[74/64] w-full object-contain" />
+                {regenN === s.n ? (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 text-xs text-white">
+                    다시 그리는 중…
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => regenerate(s.n)}
+                    disabled={busy || regenN !== null}
+                    title="이 스티커만 다시 생성"
+                    className="absolute right-1 top-1 hidden rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] text-white group-hover:block disabled:opacity-40"
+                  >
+                    🔄 다시
+                  </button>
+                )}
               </div>
             ))}
             {busy &&
