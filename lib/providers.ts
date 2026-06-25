@@ -52,8 +52,10 @@ class OpenAIProvider implements ImageProvider {
 // 키/리전마다 사용 가능한 이미지 생성 모델명이 달라서 후보를 순서대로 시도.
 // 한 번 성공한 모델명은 모듈 레벨에 캐시해 이후 요청에서 재사용.
 const GEMINI_IMAGE_MODELS = [
+  "gemini-2.5-flash-image", // 확인됨: 안정 이미지 편집 모델(Nano Banana)
+  "gemini-3.1-flash-image",
+  "gemini-3-pro-image",
   "gemini-2.5-flash-image-preview",
-  "gemini-2.5-flash-image",
   "gemini-2.0-flash-preview-image-generation",
   "gemini-2.0-flash-exp-image-generation",
 ];
