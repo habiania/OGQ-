@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { STYLES, getItems, KAKAO_SPEC, type GenMode } from "@/lib/constants";
 
 type Provider = "openai" | "gemini";
@@ -25,23 +25,8 @@ interface Report {
 export default function Home() {
   const [mode, setMode] = useState<GenMode>("ogq");
   const [count, setCount] = useState<number>(24); // 카카오 전용 (24/32/40)
-  const [provider, setProvider] = useState<Provider>("openai");
-  const [openaiKey, setOpenaiKey] = useState<string>("");
-  const [geminiKey, setGeminiKey] = useState<string>("");
-
-  // 키는 브라우저 localStorage에만 보관(개인용) — 새로고침해도 유지, 서버 코드엔 저장 안 함
-  useEffect(() => {
-    setOpenaiKey(localStorage.getItem("ogq_openai_key") || "");
-    setGeminiKey(localStorage.getItem("ogq_gemini_key") || "");
-  }, []);
-  useEffect(() => {
-    localStorage.setItem("ogq_openai_key", openaiKey);
-  }, [openaiKey]);
-  useEffect(() => {
-    localStorage.setItem("ogq_gemini_key", geminiKey);
-  }, [geminiKey]);
-
-  const apiKey = provider === "openai" ? openaiKey : geminiKey;
+  const [provider] = useState<Provider>("openai");
+  const apiKey = ""; // 키는 .env.local에서 사용 (UI 입력칸 제거)
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>("");
   const [styleId, setStyleId] = useState<string>("cute");
@@ -297,44 +282,9 @@ export default function Home() {
           </div>
 
           <div className="mt-4 space-y-3">
-            <div>
-              <label className="mb-1 block text-xs text-zinc-400">AI 제공자</label>
-              <div className="flex gap-2">
-                {/* 현재 OpenAI만 노출 (Gemini는 코드에 남겨둠 — 배열에 "gemini" 추가하면 복구) */}
-                {(["openai"] as Provider[]).map((p) => (
-                  <button
-                    key={p}
-                    disabled={busy}
-                    onClick={() => setProvider(p)}
-                    className={`flex-1 rounded-lg border px-3 py-2 text-xs ${
-                      provider === p
-                        ? "border-sky-500 bg-sky-500/10 text-sky-300"
-                        : "border-zinc-700 text-zinc-400"
-                    }`}
-                  >
-                    {p === "openai" ? "GPT (OpenAI · 투명배경 ✓)" : "Gemini"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 선택된 제공자의 API 키 입력 (localStorage에 저장, 서버엔 보관 안 함) */}
-            <div>
-              <label className="mb-1 block text-xs text-zinc-400">
-                {provider === "openai" ? "OpenAI API 키" : "Gemini API 키"}
-                <span className="ml-1 text-[10px] text-zinc-600">브라우저에만 저장 · 비우면 .env.local 사용</span>
-              </label>
-              <input
-                type="password"
-                autoComplete="off"
-                value={provider === "openai" ? openaiKey : geminiKey}
-                disabled={busy}
-                onChange={(e) =>
-                  provider === "openai" ? setOpenaiKey(e.target.value) : setGeminiKey(e.target.value)
-                }
-                placeholder={provider === "openai" ? "sk-..." : "AIza..."}
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-              />
+            {/* AI는 OpenAI(GPT) 고정, 키는 .env.local 사용 (UI 입력칸 제거) */}
+            <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-400">
+              AI 제공자: <span className="text-sky-300">GPT (OpenAI · 투명배경 ✓)</span>
             </div>
             <div>
               <label className="mb-1 block text-xs text-zinc-400">주제/이름 (제목 자동생성용, 선택)</label>
