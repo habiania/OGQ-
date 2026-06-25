@@ -300,7 +300,8 @@ export default function Home() {
             <div>
               <label className="mb-1 block text-xs text-zinc-400">AI 제공자</label>
               <div className="flex gap-2">
-                {(["openai", "gemini"] as Provider[]).map((p) => (
+                {/* 현재 OpenAI만 노출 (Gemini는 코드에 남겨둠 — 배열에 "gemini" 추가하면 복구) */}
+                {(["openai"] as Provider[]).map((p) => (
                   <button
                     key={p}
                     disabled={busy}
