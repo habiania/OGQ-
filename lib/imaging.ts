@@ -39,12 +39,15 @@ function knockoutWhite(data: Uint8ClampedArray, threshold = 244) {
 interface ComposeOpts {
   caption?: string;
   removeWhite?: boolean;
+  width?: number; // 기본 OGQ 740
+  height?: number; // 기본 OGQ 640
 }
 
-/** 캐릭터 아트 → OGQ 스티커 규격(740x640, 투명, 하단 대사) PNG */
+/** 캐릭터 아트 → 지정 규격(기본 OGQ 740x640, 투명, 하단 대사) PNG */
 export async function composeSticker(art: Buffer, opts: ComposeOpts = {}): Promise<Buffer> {
   ensureFont();
-  const { width: W, height: H } = OGQ_SPEC.sticker;
+  const W = opts.width ?? OGQ_SPEC.sticker.width;
+  const H = opts.height ?? OGQ_SPEC.sticker.height;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
 
@@ -63,9 +66,9 @@ export async function composeSticker(art: Buffer, opts: ComposeOpts = {}): Promi
     img = await load(art);
   }
 
-  // 아트 배치 영역: 대사가 있으면 하단 여백 확보
-  const margin = 24;
-  const captionH = opts.caption ? 132 : 0;
+  // 아트 배치 영역: 대사가 있으면 하단 여백 확보 (크기에 비례)
+  const margin = Math.round(W * 0.033);
+  const captionH = opts.caption ? Math.round(H * 0.21) : 0;
   const areaW = W - margin * 2;
   const areaH = H - margin * 2 - captionH;
   const scale = Math.min(areaW / img.width, areaH / img.height);
@@ -119,6 +122,11 @@ export async function makeMain(art: Buffer, removeWhite = false): Promise<Buffer
 /** 탭 이미지 (96x74) */
 export async function makeTab(art: Buffer, removeWhite = false): Promise<Buffer> {
   return fitInto(art, OGQ_SPEC.tab.width, OGQ_SPEC.tab.height, removeWhite, 6);
+}
+
+/** 임의 정사각/직사각 썸네일 (카카오 360x360 등) */
+export async function makeThumbnail(art: Buffer, w: number, h: number, removeWhite = false): Promise<Buffer> {
+  return fitInto(art, w, h, removeWhite, Math.round(w * 0.06));
 }
 
 async function fitInto(art: Buffer, W: number, H: number, removeWhite: boolean, margin: number): Promise<Buffer> {

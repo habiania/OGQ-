@@ -82,3 +82,44 @@ export function validate(stickers: PngInfo[], main?: PngInfo, tab?: PngInfo): Va
   const submittable = checks.every((c) => c.ok);
   return { score, submittable, checks };
 }
+
+import { KAKAO_SPEC } from "./constants";
+
+// 카카오 이모티콘 검수 (360x360, 선택 개수, 투명, 150KB, 썸네일)
+export function validateKakao(items: PngInfo[], count: number, thumb?: PngInfo): ValidationReport {
+  const checks: CheckResult[] = [];
+  const K = KAKAO_SPEC.item;
+
+  checks.push({ label: `이모티콘 ${count}개 충족`, ok: items.length === count, detail: `${items.length}/${count}` });
+
+  const wrongSize = items.filter((s) => s.width !== K.width || s.height !== K.height);
+  checks.push({
+    label: `해상도 ${K.width}x${K.height}`,
+    ok: wrongSize.length === 0,
+    detail: wrongSize.length ? `${wrongSize.length}장 불일치` : "전부 일치",
+  });
+
+  const opaque = items.filter((s) => !s.hasTransparent);
+  checks.push({ label: "투명 배경", ok: opaque.length === 0, detail: opaque.length ? `${opaque.length}장 불투명` : "전부 투명" });
+
+  const tooBig = items.filter((s) => s.bytes > KAKAO_SPEC.maxFileBytes);
+  checks.push({
+    label: "파일당 150KB 이하",
+    ok: tooBig.length === 0,
+    detail: tooBig.length ? `${tooBig.length}장 초과` : "전부 적정",
+  });
+
+  const broken = items.filter((s) => s.bytes < 500 || s.width === 0);
+  checks.push({ label: "손상 파일 없음", ok: broken.length === 0, detail: broken.length ? `${broken.length}장 의심` : "이상 없음" });
+
+  checks.push({
+    label: `썸네일 ${KAKAO_SPEC.thumb.width}x${KAKAO_SPEC.thumb.height}`,
+    ok: !!thumb && thumb.width === KAKAO_SPEC.thumb.width && thumb.height === KAKAO_SPEC.thumb.height,
+    detail: thumb ? `${thumb.width}x${thumb.height}` : "없음",
+  });
+
+  const passed = checks.filter((c) => c.ok).length;
+  const score = Math.round((passed / checks.length) * 100);
+  const submittable = checks.every((c) => c.ok);
+  return { score, submittable, checks };
+}

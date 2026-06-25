@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProvider, ProviderId } from "@/lib/providers";
-import { STYLES } from "@/lib/constants";
-import { characterPrompt } from "@/lib/prompts";
+import { STYLES, GenMode } from "@/lib/constants";
+import { characterPrompt, kakaoCharacterPrompt } from "@/lib/prompts";
 import { newJobId, ensureJob, saveFile } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
     const photo = form.get("photo") as File | null;
     const providerId = (form.get("provider") as string) as ProviderId;
     const styleId = form.get("style") as string;
+    const mode = ((form.get("mode") as string) || "ogq") as GenMode;
 
     if (!photo) return NextResponse.json({ error: "사진이 없습니다." }, { status: 400 });
     const style = STYLES.find((s) => s.id === styleId);
@@ -22,7 +23,8 @@ export async function POST(req: NextRequest) {
     const buf = Buffer.from(await photo.arrayBuffer());
     const mime = photo.type || "image/png";
 
-    const character = await provider.generateCharacter(buf, mime, characterPrompt(style));
+    const prompt = mode === "kakao" ? kakaoCharacterPrompt(style) : characterPrompt(style);
+    const character = await provider.generateCharacter(buf, mime, prompt);
 
     const jobId = newJobId();
     await ensureJob(jobId);

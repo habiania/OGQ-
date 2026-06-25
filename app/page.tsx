@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { STYLES, EMOTIONS } from "@/lib/constants";
+import { STYLES, getItems, KAKAO_SPEC, type GenMode } from "@/lib/constants";
 
 type Provider = "openai" | "gemini";
 type Phase = "idle" | "character" | "stickers" | "finalizing" | "done";
@@ -23,11 +23,16 @@ interface Report {
 }
 
 export default function Home() {
+  const [mode, setMode] = useState<GenMode>("ogq");
+  const [count, setCount] = useState<number>(24); // 카카오 전용 (24/32/40)
   const [provider, setProvider] = useState<Provider>("openai");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>("");
   const [styleId, setStyleId] = useState<string>("cute");
   const [subject, setSubject] = useState<string>("");
+
+  const itemCount = mode === "kakao" ? count : 24;
+  const square = mode === "kakao"; // 카카오는 360x360 정사각
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [jobId, setJobId] = useState<string>("");
@@ -51,7 +56,7 @@ export default function Home() {
       const res = await fetch("/api/sticker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, provider, emotionIndex: n - 1 }),
+        body: JSON.stringify({ jobId, provider, emotionIndex: n - 1, mode, count }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "재생성 실패");
@@ -109,6 +114,7 @@ export default function Home() {
       fd.append("photo", resized, "photo.jpg");
       fd.append("provider", provider);
       fd.append("style", styleId);
+      fd.append("mode", mode);
       const cRes = await fetch("/api/character", { method: "POST", body: fd });
       const cData = await cRes.json();
       if (!cRes.ok) throw new Error(cData.error || "캐릭터 생성 실패");
@@ -124,19 +130,19 @@ export default function Home() {
         const sRes = await fetch("/api/sticker", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId: cData.jobId, provider, emotionIndex: i }),
+          body: JSON.stringify({ jobId: cData.jobId, provider, emotionIndex: i, mode, count }),
         });
         const sData = await sRes.json();
         if (!sRes.ok) {
           if (retry) return genOne(i, false); // 일시적 실패 1회 재시도
-          throw new Error(sData.error || `${i + 1}번 스티커 생성 실패`);
+          throw new Error(sData.error || `${i + 1}번 생성 실패`);
         }
         return { n: sData.n, ko: sData.ko, b64: sData.stickerB64 };
       };
 
       let cursor = 0;
       const worker = async () => {
-        while (cursor < EMOTIONS.length) {
+        while (cursor < itemCount) {
           const i = cursor++;
           const item = await genOne(i);
           collected.push(item);
@@ -151,7 +157,7 @@ export default function Home() {
       const fRes = await fetch("/api/finalize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: cData.jobId, provider, styleId, subject }),
+        body: JSON.stringify({ jobId: cData.jobId, provider, styleId, subject, mode, count }),
       });
       const fData = await fRes.json();
       if (!fRes.ok) throw new Error(fData.error || "마무리 처리 실패");
@@ -167,12 +173,70 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-10">
-      <header className="mb-8">
-        <h1 className="text-2xl font-bold">🎨 OGQ AI 스티커 메이커</h1>
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold">🎨 AI 스티커 / 이모티콘 메이커</h1>
         <p className="mt-1 text-sm text-zinc-400">
-          사진 한 장 → 캐릭터화 → 24종 감정 스티커 → OGQ 검수 → ZIP 다운로드 (개인용)
+          사진 한 장 → 캐릭터화 →{" "}
+          {mode === "kakao"
+            ? `${count}종 카카오 이모티콘 → 검수 → ZIP`
+            : "24종 감정 스티커 → OGQ 검수 → ZIP"}{" "}
+          (개인용)
         </p>
       </header>
+
+      {/* 모드 선택 */}
+      <section className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <h2 className="mb-3 text-sm font-semibold text-zinc-300">생성 모드</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex gap-2">
+            <button
+              disabled={busy}
+              onClick={() => setMode("ogq")}
+              className={`rounded-lg border px-4 py-2 text-sm ${
+                mode === "ogq"
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                  : "border-zinc-700 text-zinc-400 hover:border-zinc-500"
+              }`}
+            >
+              OGQ 스티커 <span className="text-[11px] text-zinc-500">740×640·24종</span>
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => {
+                setMode("kakao");
+                setCount(32);
+              }}
+              className={`rounded-lg border px-4 py-2 text-sm ${
+                mode === "kakao"
+                  ? "border-amber-500 bg-amber-500/10 text-amber-300"
+                  : "border-zinc-700 text-zinc-400 hover:border-zinc-500"
+              }`}
+            >
+              카카오 이모티콘 <span className="text-[11px] text-zinc-500">360×360·SD·과장표정</span>
+            </button>
+          </div>
+
+          {mode === "kakao" && (
+            <div className="flex items-center gap-2 sm:ml-auto">
+              <span className="text-xs text-zinc-400">개수</span>
+              {KAKAO_SPEC.counts.map((c) => (
+                <button
+                  key={c}
+                  disabled={busy}
+                  onClick={() => setCount(c)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs ${
+                    count === c
+                      ? "border-amber-500 bg-amber-500/10 text-amber-300"
+                      : "border-zinc-700 text-zinc-400"
+                  }`}
+                >
+                  {c}종{c === 32 ? " (제안표준)" : ""}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* 설정 영역 */}
       <section className="grid gap-6 md:grid-cols-2">
@@ -256,7 +320,7 @@ export default function Home() {
           disabled={!file || busy}
           className="rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-zinc-950 disabled:opacity-40"
         >
-          {busy ? "생성 중…" : "스티커 세트 생성하기"}
+          {busy ? "생성 중…" : mode === "kakao" ? `이모티콘 ${count}종 생성하기` : "스티커 세트 생성하기"}
         </button>
         {phase !== "idle" && (
           <button onClick={reset} disabled={busy} className="text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-40">
@@ -266,7 +330,7 @@ export default function Home() {
         {busy && (
           <span className="text-xs text-zinc-400">
             {phase === "character" && "캐릭터 생성 중…"}
-            {phase === "stickers" && `스티커 ${done}/24 생성 중…`}
+            {phase === "stickers" && `${done}/${itemCount} 생성 중…`}
             {phase === "finalizing" && "검수 및 ZIP 생성 중…"}
           </span>
         )}
@@ -292,12 +356,14 @@ export default function Home() {
       {/* 스티커 그리드 */}
       {stickers.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-300">스티커 ({done}/24)</h2>
+          <h2 className="mb-3 text-sm font-semibold text-zinc-300">
+            {mode === "kakao" ? "이모티콘" : "스티커"} ({done}/{itemCount})
+          </h2>
           <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
             {stickers.map((s) => (
               <div key={s.n} className="group checker relative rounded-lg p-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={s.b64} alt={s.ko} className="aspect-[74/64] w-full object-contain" />
+                <img src={s.b64} alt={s.ko} className={`w-full object-contain ${square ? "aspect-square" : "aspect-[74/64]"}`} />
                 {regenN === s.n ? (
                   <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 text-xs text-white">
                     다시 그리는 중…
@@ -316,8 +382,11 @@ export default function Home() {
             ))}
             {busy &&
               phase === "stickers" &&
-              Array.from({ length: 24 - done }).map((_, i) => (
-                <div key={`ph-${i}`} className="aspect-[74/64] animate-pulse rounded-lg bg-zinc-800/50" />
+              Array.from({ length: Math.max(0, itemCount - done) }).map((_, i) => (
+                <div
+                  key={`ph-${i}`}
+                  className={`animate-pulse rounded-lg bg-zinc-800/50 ${square ? "aspect-square" : "aspect-[74/64]"}`}
+                />
               ))}
           </div>
         </section>
@@ -328,7 +397,7 @@ export default function Home() {
         <section className="mt-8 grid gap-6 md:grid-cols-2">
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-300">OGQ 검수</h2>
+              <h2 className="text-sm font-semibold text-zinc-300">{mode === "kakao" ? "카카오 검수" : "OGQ 검수"}</h2>
               <span
                 className={`text-2xl font-bold ${
                   report.submittable ? "text-emerald-400" : "text-amber-400"
@@ -338,7 +407,11 @@ export default function Home() {
               </span>
             </div>
             <p className={`mt-1 text-xs ${report.submittable ? "text-emerald-400" : "text-amber-400"}`}>
-              {report.submittable ? "✅ OGQ 제출 가능" : "⚠️ 일부 항목 점검 필요"}
+              {report.submittable
+                ? mode === "kakao"
+                  ? "✅ 카카오 제안 규격 충족"
+                  : "✅ OGQ 제출 가능"
+                : "⚠️ 일부 항목 점검 필요"}
             </p>
             <ul className="mt-3 space-y-1.5">
               {report.checks.map((c) => (

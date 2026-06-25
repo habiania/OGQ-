@@ -34,3 +34,40 @@ export async function buildZip(input: ZipInput): Promise<Buffer> {
 
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
+
+export interface KakaoZipInput {
+  items: { data: Buffer }[]; // 번호순 정렬된 이모티콘들
+  thumbnail: Buffer;
+  preview: Buffer;
+  meta: StickerMeta;
+  report: ValidationReport;
+  style: string;
+}
+
+// 카카오 규격 ZIP: 0001.png ~ NNNN.png + thumbnail.png + preview.png + manifest.json
+export async function buildKakaoZip(input: KakaoZipInput): Promise<Buffer> {
+  const zip = new JSZip();
+  const names: string[] = [];
+  input.items.forEach((it, i) => {
+    const name = String(i + 1).padStart(4, "0") + ".png";
+    names.push(name);
+    zip.file(name, it.data);
+  });
+  zip.file("thumbnail.png", input.thumbnail);
+  zip.file("preview.png", input.preview);
+
+  const manifest = {
+    title: input.meta.title,
+    keywords: input.meta.keywords,
+    style: input.style,
+    spec: "KakaoTalk Emoticon (360x360)",
+    count: input.items.length,
+    score: input.report.score,
+    submittable: input.report.submittable,
+    generatedAt: new Date().toISOString(),
+    items: names,
+  };
+  zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+
+  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+}

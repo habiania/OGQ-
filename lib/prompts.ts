@@ -29,3 +29,27 @@ export function emotionPrompt(emotion: Emotion): string {
     ANATOMY_RULES,
   ].join(" ");
 }
+
+// ===== 카카오톡 이모티콘 모드 =====
+// 승인 최적화: 실사 복제 금지 + SD 재해석, 과장된 감정, 큰 손동작, 작은 크기에서도 식별 가능.
+export function kakaoCharacterPrompt(style: StyleOption): string {
+  return [
+    `Reinterpret the subject in the photo as a cute, original super-deformed (SD/chibi) messenger emoticon character.`,
+    `Big head, small rounded body, large expressive eyes — designed to read clearly at very small sizes.`,
+    `Keep the subject's key identifying features (overall shape, main colors, hair, distinctive marks), but do NOT photo-realistically copy the real face — stylize it as an original cartoon mascot.`,
+    `Style hint: ${style.prompt}.`,
+    `Full body, centered, facing forward, friendly cheerful expression, simple bold clean lines, flat colors.`,
+    `No text. No background, fully transparent.`,
+    ANATOMY_RULES,
+  ].join(" ");
+}
+
+export function kakaoItemPrompt(item: Emotion): string {
+  return [
+    `Create the EXACT same SD emoticon character as the input image (same design, colors, proportions, number of limbs).`,
+    `Reinterpret pose and expression with STRONG exaggeration for a KakaoTalk emoticon: ${item.expr}.`,
+    `Make the emotion and hand gestures large and dramatic, clearly readable even at a tiny 100px size.`,
+    `Bold simple outline, flat colors, dynamic motion lines where it helps. No text. Fully transparent background.`,
+    ANATOMY_RULES,
+  ].join(" ");
+}
