@@ -19,6 +19,7 @@ interface SupplyItem {
 interface Listing {
   productName: string; shortDesc: string; detail: string; metaDescription: string;
   tags: string[]; keywords: string[]; promo: string; points: string[]; faq: { q: string; a: string }[];
+  recommendedPrice: number; listPrice: number; priceReason: string;
 }
 
 const won = (n: number) => n.toLocaleString() + "원";
@@ -79,8 +80,13 @@ export default function Wholesale() {
   async function runListing() {
     if (!analysis) return;
     setLoading("listing"); setError("");
+    // 도매매 공급가 요약 → AI 가격 추천 근거로 전달
+    const prices = supply.map((s) => s.supplyPrice).filter((p) => p > 0);
+    const supplyInfo = prices.length
+      ? { minSupply: Math.min(...prices), avgSupply: Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) }
+      : undefined;
     try {
-      const res = await fetch("/api/wholesale/listing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ analysis }) });
+      const res = await fetch("/api/wholesale/listing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ analysis, supply: supplyInfo }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "리스팅 생성 실패");
       setListing(data.listing);
@@ -215,6 +221,19 @@ export default function Wholesale() {
 
       {listing && (
         <section className="mt-6 space-y-3">
+          {listing.recommendedPrice > 0 && (
+            <div className="rounded-xl border border-emerald-700/50 bg-emerald-500/5 p-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-xs font-semibold text-emerald-300">💰 AI 추천 가격</span>
+                <Copy text={String(listing.recommendedPrice)} label="판매가 복사" />
+              </div>
+              <div className="flex items-end gap-3">
+                <span className="text-xs text-zinc-500 line-through">{won(listing.listPrice)}</span>
+                <span className="text-2xl font-bold text-emerald-300">{won(listing.recommendedPrice)}</span>
+              </div>
+              <p className="mt-1 text-[11px] text-zinc-400">{listing.priceReason}</p>
+            </div>
+          )}
           <Field label="상품명 (스마트스토어 SEO)" value={listing.productName} />
           <Field label="짧은 설명" value={listing.shortDesc} />
           <Field label="상세설명" value={listing.detail} multiline />
