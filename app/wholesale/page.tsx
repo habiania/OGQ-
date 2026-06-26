@@ -96,19 +96,22 @@ export default function Wholesale() {
     runWith(keyword);
   }
 
-  async function runListing() {
+  async function runListing(target?: SupplyItem) {
     if (!analysis) return;
-    setLoading("listing"); setError("");
-    // 도매매 공급가 요약 → AI 가격 추천 근거로 전달
+    setLoading("listing"); setError(""); setListing(null);
     const prices = supply.map((s) => s.supplyPrice).filter((p) => p > 0);
     const supplyInfo = prices.length
       ? { minSupply: Math.min(...prices), avgSupply: Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) }
       : undefined;
+    const product = target
+      ? { title: target.title, supplyPrice: target.supplyPrice, deliveryFee: target.deliveryFee }
+      : undefined;
     try {
-      const res = await fetch("/api/wholesale/listing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ analysis, supply: supplyInfo }) });
+      const res = await fetch("/api/wholesale/listing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ analysis, supply: supplyInfo, product }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "리스팅 생성 실패");
       setListing(data.listing);
+      setTimeout(() => document.getElementById("listing-result")?.scrollIntoView({ behavior: "smooth" }), 50);
     } catch (e: any) { setError(e?.message || "오류"); }
     finally { setLoading(""); }
   }
@@ -232,6 +235,13 @@ export default function Wholesale() {
                       </div>
                       <Copy text={String(m.sellingPrice)} label="판매가 복사" />
                     </div>
+                    <button
+                      onClick={() => runListing(it)}
+                      disabled={loading !== ""}
+                      className="mt-2 w-full rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 disabled:opacity-40"
+                    >
+                      ✨ 이 상품 최적화 (상품명·가격·상세)
+                    </button>
                   </div>
                 </div>
               );
@@ -243,16 +253,16 @@ export default function Wholesale() {
       {/* AI 리스팅 */}
       {analysis && (
         <section className="mt-6">
-          <button onClick={runListing} disabled={loading !== ""}
+          <button onClick={() => runListing()} disabled={loading !== ""}
             className="rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-zinc-950 disabled:opacity-40">
-            {loading === "listing" ? "AI 생성 중…" : "🤖 AI 상품 리스팅 생성 (상품명·상세·태그)"}
+            {loading === "listing" ? "AI 생성 중…" : "🤖 키워드 전체로 AI 리스팅 생성"}
           </button>
           <p className="mt-1 text-[11px] text-zinc-600">※ Gemini 무료 모델로 생성</p>
         </section>
       )}
 
       {listing && (
-        <section className="mt-6 space-y-3">
+        <section id="listing-result" className="mt-6 space-y-3">
           {listing.recommendedPrice > 0 && (
             <div className="rounded-xl border border-emerald-700/50 bg-emerald-500/5 p-4">
               <div className="mb-1 flex items-center justify-between">
