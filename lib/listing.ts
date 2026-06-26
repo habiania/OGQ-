@@ -1,15 +1,16 @@
+import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 import { Analysis } from "./wholesale";
 
 export interface Listing {
   productName: string; // 스마트스토어 최적화 상품명 (100자 이하)
-  shortDesc: string; // 짧은 설명
-  detail: string; // 상세설명
+  shortDesc: string;
+  detail: string;
   metaDescription: string;
-  tags: string[]; // 검색태그
-  keywords: string[]; // 검색키워드
-  promo: string; // 홍보문구
-  points: string[]; // 구매포인트
+  tags: string[];
+  keywords: string[];
+  promo: string;
+  points: string[];
   faq: { q: string; a: string }[];
 }
 
@@ -20,31 +21,16 @@ const SYSTEM = `당신은 한국 스마트스토어 위탁판매 SEO 전문가�
 - 과장·허위·의료효능 표현 금지. 자연스러운 한국어.
 - 반드시 지정한 JSON 스키마로만 응답.`;
 
-export async function generateListing(analysis: Analysis, apiKey?: string): Promise<Listing> {
-  const key = (apiKey && apiKey.trim()) || process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OpenAI API 키가 없습니다.");
-  const client = new OpenAI({ apiKey: key });
-
+function buildPrompt(analysis: Analysis): string {
   const ctx = `키워드: ${analysis.keyword}
 경쟁상품 수: ${analysis.total.toLocaleString()} (경쟁도 ${analysis.competition.level})
 가격대: 최저 ${analysis.price.min}원 / 평균 ${analysis.price.avg}원 / 최고 ${analysis.price.max}원
 상위 상품명 예시: ${analysis.topItems.slice(0, 5).map((i) => i.title).join(" | ")}`;
+  return `${SYSTEM}\n\n${ctx}\n\n아래 JSON 스키마로만 응답:
+{"productName":"","shortDesc":"","detail":"","metaDescription":"","tags":["",""],"keywords":["",""],"promo":"","points":["",""],"faq":[{"q":"","a":""}]}`;
+}
 
-  const res = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: SYSTEM },
-      {
-        role: "user",
-        content: `${ctx}\n\n아래 JSON 스키마로 리스팅을 생성하세요:
-{"productName":"","shortDesc":"","detail":"","metaDescription":"","tags":["",""],"keywords":["",""],"promo":"","points":["",""],"faq":[{"q":"","a":""}]}`,
-      },
-    ],
-  });
-
-  const txt = res.choices[0]?.message?.content || "{}";
-  const parsed = JSON.parse(txt);
+function normalize(parsed: any): Listing {
   return {
     productName: parsed.productName || "",
     shortDesc: parsed.shortDesc || "",
@@ -56,4 +42,28 @@ export async function generateListing(analysis: Analysis, apiKey?: string): Prom
     points: parsed.points || [],
     faq: parsed.faq || [],
   };
+}
+
+// 텍스트 생성은 Gemini(무료 티어)를 우선 사용, 없으면 OpenAI로 폴백.
+export async function generateListing(analysis: Analysis): Promise<Listing> {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (geminiKey) {
+    const ai = new GoogleGenAI({ apiKey: geminiKey });
+    const res = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: buildPrompt(analysis),
+      config: { responseMimeType: "application/json" },
+    });
+    return normalize(JSON.parse(res.text || "{}"));
+  }
+
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey) throw new Error("AI 키가 없습니다 (GEMINI_API_KEY 또는 OPENAI_API_KEY).");
+  const client = new OpenAI({ apiKey: openaiKey });
+  const res = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
+    messages: [{ role: "user", content: buildPrompt(analysis) }],
+  });
+  return normalize(JSON.parse(res.choices[0]?.message?.content || "{}"));
 }

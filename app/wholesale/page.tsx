@@ -176,7 +176,7 @@ export default function Wholesale() {
             className="rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-zinc-950 disabled:opacity-40">
             {loading === "listing" ? "AI 생성 중…" : "🤖 AI 상품 리스팅 생성 (상품명·상세·태그)"}
           </button>
-          <p className="mt-1 text-[11px] text-zinc-600">※ AI 생성은 OpenAI 크레딧 필요</p>
+          <p className="mt-1 text-[11px] text-zinc-600">※ Gemini 무료 모델로 생성</p>
         </section>
       )}
 
