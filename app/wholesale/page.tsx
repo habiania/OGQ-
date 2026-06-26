@@ -43,13 +43,25 @@ export default function Wholesale() {
   const [feeRate, setFeeRate] = useState(6);
   const [marginRate, setMarginRate] = useState(30);
 
-  async function run() {
-    if (!keyword.trim()) return;
+  // 잘 팔리는 위탁판매 인기 카테고리 (딸깍 추천)
+  const PICKS = [
+    "강아지 간식", "차량용 거치대", "무선 가습기", "강아지 장난감", "주방 정리용품",
+    "캠핑 의자", "휴대폰 거치대", "텀블러", "무선 충전기", "발 각질제거기",
+    "여행용 파우치", "고양이 장난감", "손목 보호대", "주방 칼갈이",
+  ];
+
+  function pick(kw: string) {
+    setKeyword(kw);
+    setTimeout(() => runWith(kw), 0);
+  }
+
+  async function runWith(kw: string) {
+    if (!kw.trim()) return;
     setLoading("analyze"); setError(""); setAnalysis(null); setSupply([]); setListing(null);
     try {
       const [aRes, sRes] = await Promise.all([
-        fetch("/api/wholesale/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword }) }),
-        fetch("/api/wholesale/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword }) }),
+        fetch("/api/wholesale/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword: kw }) }),
+        fetch("/api/wholesale/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword: kw }) }),
       ]);
       const aData = await aRes.json();
       if (!aRes.ok) throw new Error(aData.error || "분석 실패");
@@ -58,6 +70,10 @@ export default function Wholesale() {
       if (sRes.ok) setSupply(sData.items || []);
     } catch (e: any) { setError(e?.message || "오류"); }
     finally { setLoading(""); }
+  }
+
+  function run() {
+    runWith(keyword);
   }
 
   async function runListing() {
@@ -92,6 +108,23 @@ export default function Wholesale() {
           className="rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-zinc-950 disabled:opacity-40">
           {loading === "analyze" ? "분석 중…" : "분석"}
         </button>
+      </div>
+
+      {/* 딸깍 추천 — 누르면 자동 분석+소싱 */}
+      <div className="mt-3">
+        <div className="mb-1.5 text-xs text-zinc-500">🔥 인기 카테고리 — 누르면 자동 분석</div>
+        <div className="flex flex-wrap gap-1.5">
+          {PICKS.map((kw) => (
+            <button
+              key={kw}
+              onClick={() => pick(kw)}
+              disabled={loading !== ""}
+              className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:border-emerald-500 hover:text-emerald-300 disabled:opacity-40"
+            >
+              {kw}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && <div className="mt-4 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-300">{error}</div>}
