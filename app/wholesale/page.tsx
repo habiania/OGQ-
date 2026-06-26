@@ -43,6 +43,25 @@ export default function Wholesale() {
   const [error, setError] = useState("");
   const [feeRate, setFeeRate] = useState(6);
   const [marginRate, setMarginRate] = useState(30);
+  const [picks, setPicks] = useState<{ index: number; reason: string; score: number }[]>([]);
+  const [recLoading, setRecLoading] = useState(false);
+
+  async function recommend() {
+    if (!analysis || supply.length === 0) return;
+    setRecLoading(true); setError(""); setPicks([]);
+    try {
+      const candidates = supply.map((s, i) => ({ index: i, title: s.title, supplyPrice: s.supplyPrice, deliveryFee: s.deliveryFee }));
+      const res = await fetch("/api/wholesale/recommend", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analysis, candidates }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "추천 실패");
+      setPicks(data.picks || []);
+    } catch (e: any) { setError(e?.message || "오류"); }
+    finally { setRecLoading(false); }
+  }
+  const pickOf = (i: number) => picks.find((p) => p.index === i);
 
   // 잘 팔리는 위탁판매 인기 카테고리 (딸깍 추천)
   const PICKS = [
@@ -58,7 +77,7 @@ export default function Wholesale() {
 
   async function runWith(kw: string) {
     if (!kw.trim()) return;
-    setLoading("analyze"); setError(""); setAnalysis(null); setSupply([]); setListing(null);
+    setLoading("analyze"); setError(""); setAnalysis(null); setSupply([]); setListing(null); setPicks([]);
     try {
       const [aRes, sRes] = await Promise.all([
         fetch("/api/wholesale/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword: kw }) }),
@@ -176,19 +195,32 @@ export default function Wholesale() {
       {/* 도매매 소싱 + 판매가 계산 */}
       {supply.length > 0 && (
         <section className="mt-6">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-300">📦 도매매 추천 상품 ({supply.length})</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-300">📦 도매매 상품 ({supply.length})</h2>
+            <button onClick={recommend} disabled={recLoading || loading !== ""}
+              className="rounded-lg bg-amber-500/90 px-3 py-1.5 text-xs font-semibold text-zinc-950 disabled:opacity-40">
+              {recLoading ? "AI 분석 중…" : "🤖 AI가 잘 팔릴 상품 추천"}
+            </button>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {supply.map((it) => {
+            {supply.map((it, idx) => {
               const m = calcMargin({
                 supplyPrice: it.supplyPrice, deliveryFee: it.deliveryFee,
                 feeRate, marginRate, includeShipInPrice: it.freeShip,
               });
+              const p = pickOf(idx);
               return (
-                <div key={it.no} className="flex gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+                <div key={it.no} className={`flex gap-3 rounded-xl border p-3 ${p ? "border-amber-500/70 bg-amber-500/5" : "border-zinc-800 bg-zinc-900/40"}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={it.thumb} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover" />
                   <div className="min-w-0 flex-1">
+                    {p && (
+                      <div className="mb-1 inline-block rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-zinc-950">
+                        ⭐ AI추천 {p.score}점
+                      </div>
+                    )}
                     <a href={it.url} target="_blank" rel="noreferrer" className="line-clamp-2 text-xs text-zinc-200 hover:text-sky-300">{it.title}</a>
+                    {p && <div className="mt-0.5 text-[11px] text-amber-300/90">{p.reason}</div>}
                     <div className="mt-1 text-[11px] text-zinc-500">
                       공급가 {won(it.supplyPrice)} · 배송 {it.freeShip ? "무료" : won(it.deliveryFee)}
                     </div>
