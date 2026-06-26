@@ -1,20 +1,25 @@
 import { createCanvas, loadImage, GlobalFonts, type Image } from "@napi-rs/canvas";
+import path from "path";
 import { OGQ_SPEC } from "./constants";
 
-// 한글 렌더링용 폰트 등록 (Windows 기본 맑은 고딕). 실패해도 기본 폰트로 진행.
+// 한글 렌더링용 폰트 등록.
+// 1순위: 프로젝트에 번들한 나눔고딕(리눅스/Render 등 어디서나 동작)
+// 2순위: 로컬 윈도우 맑은 고딕
+// 실패 시 sans-serif (배포 환경에선 한글 깨질 수 있으므로 번들 폰트가 핵심)
 let FONT_FAMILY = "sans-serif";
 let fontReady = false;
 function ensureFont() {
   if (fontReady) return;
   fontReady = true;
-  const candidates = [
-    ["C:/Windows/Fonts/malgunbd.ttf", "OGQFont"], // 맑은 고딕 Bold
-    ["C:/Windows/Fonts/malgun.ttf", "OGQFont"],
+  const candidates: string[] = [
+    path.join(process.cwd(), "assets/fonts/NanumGothicBold.ttf"), // 번들 폰트(배포용)
+    "C:/Windows/Fonts/malgunbd.ttf", // 로컬 윈도우
+    "C:/Windows/Fonts/malgun.ttf",
   ];
-  for (const [path, name] of candidates) {
+  for (const p of candidates) {
     try {
-      if (GlobalFonts.registerFromPath(path, name)) {
-        FONT_FAMILY = name;
+      if (GlobalFonts.registerFromPath(p, "OGQFont")) {
+        FONT_FAMILY = "OGQFont";
         return;
       }
     } catch {
