@@ -26,7 +26,7 @@ export function middleware(req: NextRequest) {
   });
 }
 
-// 정적 자산 제외 전체 보호 (API 포함 — 키 소모 엔드포인트도 잠금)
+// 정적 자산 + 헬스체크 제외 전체 보호 (API 포함 — 키 소모 엔드포인트도 잠금)
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health).*)"],
 };

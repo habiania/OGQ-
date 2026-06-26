@@ -7,7 +7,7 @@ services:
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /api/health
     envVars:
       - key: OPENAI_API_KEY
         sync: false # 대시보드에서 직접 입력
