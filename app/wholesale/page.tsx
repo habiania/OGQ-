@@ -47,6 +47,35 @@ export default function Wholesale() {
   const [recLoading, setRecLoading] = useState(false);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [thumbLoading, setThumbLoading] = useState("");
+  const [details, setDetails] = useState<Record<string, string>>({});
+  const [detailLoading, setDetailLoading] = useState("");
+
+  function supplySummary() {
+    const prices = supply.map((s) => s.supplyPrice).filter((p) => p > 0);
+    return prices.length
+      ? { minSupply: Math.min(...prices), avgSupply: Math.round(prices.reduce((a, b) => a + b, 0) / prices.length) }
+      : undefined;
+  }
+
+  async function makeDetail(it: SupplyItem) {
+    if (!analysis) return;
+    setDetailLoading(it.no); setError("");
+    const m = calcMargin({ supplyPrice: it.supplyPrice, deliveryFee: it.deliveryFee, feeRate, marginRate, includeShipInPrice: it.freeShip });
+    try {
+      const res = await fetch("/api/wholesale/detail", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          analysis, supply: supplySummary(),
+          product: { title: it.title, supplyPrice: it.supplyPrice, deliveryFee: it.deliveryFee },
+          imageUrl: it.thumb, price: m.sellingPrice,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "상세페이지 생성 실패");
+      setDetails((prev) => ({ ...prev, [it.no]: data.detailB64 }));
+    } catch (e: any) { setError(e?.message || "오류"); }
+    finally { setDetailLoading(""); }
+  }
 
   async function makeThumb(it: SupplyItem) {
     setThumbLoading(it.no); setError("");
@@ -267,18 +296,28 @@ export default function Wholesale() {
                       >
                         {thumbLoading === it.no ? "생성 중…" : "🖼️ 썸네일"}
                       </button>
+                      <button
+                        onClick={() => makeDetail(it)}
+                        disabled={detailLoading !== ""}
+                        className="flex-1 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 disabled:opacity-40"
+                      >
+                        {detailLoading === it.no ? "생성 중…" : "📄 상세페이지"}
+                      </button>
                     </div>
                     {thumbs[it.no] && (
                       <div className="mt-2 flex items-center gap-2">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={thumbs[it.no]} alt="thumb" className="h-16 w-16 rounded-md border border-zinc-700 object-cover" />
-                        <a
-                          href={thumbs[it.no]}
-                          download={`thumbnail-${it.no}.png`}
-                          className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-zinc-950"
-                        >
-                          ⬇ 썸네일 다운로드
-                        </a>
+                        <a href={thumbs[it.no]} download={`thumbnail-${it.no}.png`}
+                          className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-zinc-950">⬇ 썸네일 다운로드</a>
+                      </div>
+                    )}
+                    {details[it.no] && (
+                      <div className="mt-2 flex items-center gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={details[it.no]} alt="detail" className="h-16 w-12 rounded-md border border-zinc-700 object-cover object-top" />
+                        <a href={details[it.no]} download={`detail-${it.no}.png`}
+                          className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-zinc-950">⬇ 상세페이지 다운로드</a>
                       </div>
                     )}
                   </div>

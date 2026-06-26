@@ -270,3 +270,116 @@ export async function composeProductThumbnail(
 
   return canvas.toBuffer("image/png");
 }
+
+// 여러 줄 줄바꿈(제한 없음)
+function wrapAll(
+  ctx: ReturnType<ReturnType<typeof createCanvas>["getContext"]>,
+  text: string,
+  maxWidth: number
+): string[] {
+  const out: string[] = [];
+  let line = "";
+  for (const ch of text) {
+    if (ch === "\n") { out.push(line); line = ""; continue; }
+    const t = line + ch;
+    if (ctx.measureText(t).width > maxWidth && line) { out.push(line); line = ch; }
+    else line = t;
+  }
+  if (line) out.push(line);
+  return out;
+}
+
+export interface DetailData {
+  productName: string;
+  price: number;
+  listPrice: number;
+  points: string[];
+  detail: string;
+  faq: { q: string; a: string }[];
+}
+
+/** 스마트스토어용 상세페이지 (세로 긴 이미지): 상품명·가격·대표사진·구매포인트·상세·FAQ */
+export async function composeDetailPage(productImg: Buffer, data: DetailData): Promise<Buffer> {
+  ensureFont();
+  const W = 860, M = 48, CW = W - M * 2;
+  const tmp = createCanvas(W, 7000);
+  const ctx = tmp.getContext("2d");
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, W, 7000);
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  let y = 50;
+
+  const heading = (t: string) => {
+    y += 40;
+    ctx.fillStyle = "#10b981"; ctx.fillRect(M, y + 4, 6, 32);
+    ctx.fillStyle = "#111827"; ctx.font = `bold 36px "${FONT_FAMILY}"`;
+    ctx.fillText(t, M + 20, y);
+    y += 58;
+  };
+  const para = (t: string, size = 28, color = "#374151", lh = 44) => {
+    ctx.fillStyle = color; ctx.font = `400 ${size}px "${FONT_FAMILY}"`;
+    for (const ln of wrapAll(ctx, t, CW)) { ctx.fillText(ln, M, y); y += lh; }
+  };
+
+  // 1. 상품명
+  ctx.fillStyle = "#111827"; ctx.font = `bold 44px "${FONT_FAMILY}"`;
+  for (const ln of wrapAll(ctx, data.productName, CW)) { ctx.fillText(ln, M, y); y += 56; }
+  // 가격
+  y += 14;
+  if (data.listPrice) {
+    ctx.fillStyle = "#9ca3af"; ctx.font = `400 30px "${FONT_FAMILY}"`;
+    const lp = `${data.listPrice.toLocaleString()}원`;
+    ctx.fillText(lp, M, y);
+    ctx.fillRect(M, y + 18, ctx.measureText(lp).width, 2);
+    y += 42;
+  }
+  ctx.fillStyle = "#ef4444"; ctx.font = `bold 54px "${FONT_FAMILY}"`;
+  ctx.fillText(`${data.price.toLocaleString()}원`, M, y);
+  y += 80;
+
+  // 2. 대표 이미지
+  const img = await load(productImg);
+  const ih = Math.min(img.height * (CW / img.width), 720);
+  ctx.drawImage(img, M, y, CW, ih);
+  y += ih + 30;
+
+  // 3. 구매포인트
+  if (data.points?.length) {
+    heading("이런 점이 좋아요 ✔");
+    for (const p of data.points) {
+      ctx.fillStyle = "#10b981"; ctx.font = `bold 28px "${FONT_FAMILY}"`;
+      ctx.fillText("•", M, y);
+      ctx.fillStyle = "#374151"; ctx.font = `400 28px "${FONT_FAMILY}"`;
+      for (const ln of wrapAll(ctx, p, CW - 30)) { ctx.fillText(ln, M + 28, y); y += 42; }
+      y += 10;
+    }
+  }
+
+  // 4. 상세설명
+  if (data.detail) { heading("상품 상세"); para(data.detail); }
+
+  // 5. FAQ
+  if (data.faq?.length) {
+    heading("자주 묻는 질문");
+    for (const f of data.faq) {
+      ctx.fillStyle = "#111827"; ctx.font = `bold 28px "${FONT_FAMILY}"`;
+      for (const ln of wrapAll(ctx, "Q. " + f.q, CW)) { ctx.fillText(ln, M, y); y += 40; }
+      ctx.fillStyle = "#6b7280"; ctx.font = `400 26px "${FONT_FAMILY}"`;
+      for (const ln of wrapAll(ctx, "A. " + f.a, CW)) { ctx.fillText(ln, M, y); y += 38; }
+      y += 16;
+    }
+  }
+
+  // 6. 안내 푸터
+  y += 24;
+  ctx.fillStyle = "#f3f4f6"; ctx.fillRect(0, y, W, 168);
+  ctx.fillStyle = "#6b7280"; ctx.font = `400 24px "${FONT_FAMILY}"`;
+  ctx.fillText("• 평일 오후 2시 이전 주문 시 당일 출고됩니다.", M, y + 32);
+  ctx.fillText("• 교환/반품은 상품 수령 후 7일 이내 가능합니다.", M, y + 70);
+  ctx.fillText("• 상품 문의는 톡톡 또는 Q&A로 남겨주세요.", M, y + 108);
+  y += 192;
+
+  const H = Math.ceil(y);
+  const out = createCanvas(W, H);
+  out.getContext("2d").drawImage(tmp, 0, 0);
+  return out.toBuffer("image/png");
+}
