@@ -21,8 +21,8 @@ const TOOLS: Tool[] = [
     href: "/wholesale",
     icon: "🛒",
     title: "AI 위탁판매 최적화",
-    desc: "상품 추천·가격 계산·상품명/상세페이지·SEO·썸네일까지 자동 생성 (준비중)",
-    status: "soon",
+    desc: "키워드 → 네이버 경쟁·가격·트렌드 분석 → AI 상품명/상세페이지/SEO 리스팅 생성",
+    status: "ready",
   },
   {
     href: "/kdp",
