@@ -45,6 +45,23 @@ export default function Wholesale() {
   const [marginRate, setMarginRate] = useState(30);
   const [picks, setPicks] = useState<{ index: number; reason: string; score: number }[]>([]);
   const [recLoading, setRecLoading] = useState(false);
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [thumbLoading, setThumbLoading] = useState("");
+
+  async function makeThumb(it: SupplyItem) {
+    setThumbLoading(it.no); setError("");
+    const m = calcMargin({ supplyPrice: it.supplyPrice, deliveryFee: it.deliveryFee, feeRate, marginRate, includeShipInPrice: it.freeShip });
+    try {
+      const res = await fetch("/api/wholesale/thumbnail", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: it.thumb, title: it.title, price: m.sellingPrice }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "썸네일 생성 실패");
+      setThumbs((prev) => ({ ...prev, [it.no]: data.thumbnailB64 }));
+    } catch (e: any) { setError(e?.message || "오류"); }
+    finally { setThumbLoading(""); }
+  }
 
   async function recommend() {
     if (!analysis || supply.length === 0) return;
@@ -235,13 +252,35 @@ export default function Wholesale() {
                       </div>
                       <Copy text={String(m.sellingPrice)} label="판매가 복사" />
                     </div>
-                    <button
-                      onClick={() => runListing(it)}
-                      disabled={loading !== ""}
-                      className="mt-2 w-full rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 disabled:opacity-40"
-                    >
-                      ✨ 이 상품 최적화 (상품명·가격·상세)
-                    </button>
+                    <div className="mt-2 flex gap-1.5">
+                      <button
+                        onClick={() => runListing(it)}
+                        disabled={loading !== ""}
+                        className="flex-1 rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 disabled:opacity-40"
+                      >
+                        ✨ 최적화
+                      </button>
+                      <button
+                        onClick={() => makeThumb(it)}
+                        disabled={thumbLoading !== ""}
+                        className="flex-1 rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 disabled:opacity-40"
+                      >
+                        {thumbLoading === it.no ? "생성 중…" : "🖼️ 썸네일"}
+                      </button>
+                    </div>
+                    {thumbs[it.no] && (
+                      <div className="mt-2 flex items-center gap-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={thumbs[it.no]} alt="thumb" className="h-16 w-16 rounded-md border border-zinc-700 object-cover" />
+                        <a
+                          href={thumbs[it.no]}
+                          download={`thumbnail-${it.no}.png`}
+                          className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-zinc-950"
+                        >
+                          ⬇ 썸네일 다운로드
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

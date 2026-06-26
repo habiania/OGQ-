@@ -172,3 +172,101 @@ export async function inspectPng(buf: Buffer) {
   }
   return { width: img.width, height: img.height, hasTransparent, bytes: buf.length };
 }
+
+// ===== 위탁판매 썸네일/상세 합성 (도매매 사진 + AI 카피, 무료) =====
+
+// 텍스트를 maxWidth에 맞춰 줄바꿈 (최대 maxLines줄, 넘치면 …)
+function wrapText(
+  ctx: ReturnType<ReturnType<typeof createCanvas>["getContext"]>,
+  text: string,
+  maxWidth: number,
+  maxLines: number
+): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const ch of text) {
+    const test = line + ch;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = ch;
+      if (lines.length === maxLines - 1) break;
+    } else {
+      line = test;
+    }
+  }
+  if (lines.length < maxLines) lines.push(line);
+  // 남은 텍스트가 있으면 마지막 줄에 … 처리
+  const used = lines.join("").length;
+  if (used < text.length && lines.length) {
+    let last = lines[lines.length - 1];
+    while (ctx.measureText(last + "…").width > maxWidth && last) last = last.slice(0, -1);
+    lines[lines.length - 1] = last + "…";
+  }
+  return lines;
+}
+
+function roundRect(ctx: any, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** 1000x1000 상품 썸네일: 상품사진 + 상품명 + 가격 배지 */
+export async function composeProductThumbnail(
+  productImg: Buffer,
+  title: string,
+  priceText: string
+): Promise<Buffer> {
+  ensureFont();
+  const S = 1000;
+  const canvas = createCanvas(S, S);
+  const ctx = canvas.getContext("2d");
+
+  // 배경: 연한 그라데이션
+  const g = ctx.createLinearGradient(0, 0, 0, S);
+  g.addColorStop(0, "#ffffff");
+  g.addColorStop(1, "#eef1f5");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+
+  // 상품 사진 (상단 영역에 흰 카드 + 이미지 fit)
+  const img = await load(productImg);
+  const pad = 90;
+  const areaY = 70;
+  const areaH = 600;
+  const areaW = S - pad * 2;
+  const scale = Math.min(areaW / img.width, areaH / img.height);
+  const dw = img.width * scale;
+  const dh = img.height * scale;
+  ctx.drawImage(img, (S - dw) / 2, areaY + (areaH - dh) / 2, dw, dh);
+
+  // 상품명 (하단 2줄)
+  ctx.fillStyle = "#1f2937";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `bold 52px "${FONT_FAMILY}"`;
+  const lines = wrapText(ctx, title, S - 120, 2);
+  let ty = 770;
+  for (const ln of lines) {
+    ctx.fillText(ln, S / 2, ty);
+    ty += 62;
+  }
+
+  // 가격 배지 (하단 빨간 라운드)
+  ctx.font = `bold 56px "${FONT_FAMILY}"`;
+  const pw = ctx.measureText(priceText).width + 80;
+  const bx = (S - pw) / 2;
+  const by = 880;
+  ctx.fillStyle = "#ef4444";
+  roundRect(ctx, bx, by, pw, 84, 42);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.textBaseline = "middle";
+  ctx.fillText(priceText, S / 2, by + 44);
+
+  return canvas.toBuffer("image/png");
+}
