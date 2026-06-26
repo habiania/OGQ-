@@ -49,12 +49,25 @@ export async function generateListing(analysis: Analysis): Promise<Listing> {
   const geminiKey = process.env.GEMINI_API_KEY;
   if (geminiKey) {
     const ai = new GoogleGenAI({ apiKey: geminiKey });
-    const res = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: buildPrompt(analysis),
-      config: { responseMimeType: "application/json" },
-    });
-    return normalize(JSON.parse(res.text || "{}"));
+    // 503(과부하)·일시 오류 시 자동 재시도 (최대 3회, 점증 대기)
+    let lastErr: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: buildPrompt(analysis),
+          config: { responseMimeType: "application/json" },
+        });
+        return normalize(JSON.parse(res.text || "{}"));
+      } catch (e: any) {
+        lastErr = e;
+        const msg = (e?.message || "").toLowerCase();
+        const retryable = msg.includes("503") || msg.includes("overload") || msg.includes("unavailable") || msg.includes("429");
+        if (!retryable || attempt === 2) break;
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      }
+    }
+    throw lastErr;
   }
 
   const openaiKey = process.env.OPENAI_API_KEY;
