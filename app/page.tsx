@@ -27,9 +27,9 @@ const TOOLS: Tool[] = [
   {
     href: "/kdp",
     icon: "📚",
-    title: "KDP 자동화",
-    desc: "아마존 KDP 출판 자동화 (준비중)",
-    status: "soon",
+    title: "AI KDP 북 스튜디오",
+    desc: "목차 입력 → AI 집필 → KDP 메타데이터 → PDF 다운로드 (아마존 전자책)",
+    status: "ready",
   },
 ];
 
