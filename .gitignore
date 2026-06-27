@@ -7,3 +7,7 @@ output
 *.log
 *.tsbuildinfo
 .DS_Store
+_*.mjs
+_*.png
+_*.gif
+_*.pdf
