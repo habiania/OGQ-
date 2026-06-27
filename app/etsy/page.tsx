@@ -16,7 +16,7 @@ interface Kit {
 export default function Etsy() {
   const [type, setType] = useState<Type>("wallart");
   const [theme, setTheme] = useState("");
-  const [language, setLanguage] = useState("en");
+  const language = "en"; // Etsy(해외)는 영어 고정
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [style, setStyle] = useState("auto");
   const [count, setCount] = useState(6);
@@ -117,7 +117,6 @@ export default function Etsy() {
                   {STYLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </label>
-              <LangSel language={language} setLanguage={setLanguage} loading={loading} />
             </div>
             <p className="text-[11px] text-zinc-500">생성 시 A4·A3·US Letter·2:3·3:4·4:5·11x14 전 사이즈 + 액자 목업 + Etsy 리스팅(.txt)을 ZIP으로 묶어줍니다.</p>
           </>
@@ -133,7 +132,6 @@ export default function Etsy() {
                   {[4, 6, 8, 10, 12].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </label>
-              <LangSel language={language} setLanguage={setLanguage} loading={loading} />
             </div>
           </>
         )}
@@ -151,7 +149,6 @@ export default function Etsy() {
             <div className="flex flex-wrap items-center gap-4">
               <input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="주제(선택) — AI가 체크리스트·습관 항목 채움" disabled={loading}
                 className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500" />
-              <LangSel language={language} setLanguage={setLanguage} loading={loading} />
             </div>
           </>
         )}
@@ -232,14 +229,5 @@ function Kv({ label, v, multi }: { label: string; v: string; multi?: boolean }) 
       <div className="mb-0.5 flex items-center justify-between"><span className="text-xs text-zinc-400">{label}</span><Copy text={v} /></div>
       <div className={`text-[13px] text-zinc-200 ${multi ? "whitespace-pre-wrap" : ""}`}>{v}</div>
     </div>
-  );
-}
-function LangSel({ language, setLanguage, loading }: { language: string; setLanguage: (v: string) => void; loading: boolean }) {
-  return (
-    <label className="flex items-center gap-2 text-xs text-zinc-400">언어
-      <select value={language} onChange={(e) => setLanguage(e.target.value)} disabled={loading} className="rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200">
-        <option value="en">English</option><option value="ko">한국어</option>
-      </select>
-    </label>
   );
 }
