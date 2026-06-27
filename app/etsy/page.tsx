@@ -60,7 +60,11 @@ export default function Etsy() {
         if (r.error) throw new Error(r.error);
         setPreviews(r.previews || []); setZip(r.zipB64 || "");
       } else if (type === "planner") {
-        const r = await (await fetch("/api/etsy/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) })).json();
+        const res = await fetch("/api/etsy/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) });
+        const txt = await res.text();
+        let r: any;
+        try { r = JSON.parse(txt); }
+        catch { throw new Error("번들 생성이 시간 초과로 실패했습니다. 무료 서버는 성능이 낮아 대용량 번들이 버겁습니다 → PC(localhost)에서 생성하거나 유료 인스턴스를 쓰세요."); }
         if (r.error) throw new Error(r.error);
         setMockup(r.mockupB64); setGrid(r.gridB64 || ""); setKit(r.kit); setZip(r.zipB64);
       } else {

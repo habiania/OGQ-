@@ -302,9 +302,9 @@ function renderOnePage(key: string, monthTitle: string | undefined, W: number, H
 }
 
 export interface SizeDef { name: string; w: number; h: number }
+// 무료 서버(저성능 CPU) 대응: A4 1종 + 적정 해상도로 경량화
 export const BUNDLE_SIZES: SizeDef[] = [
-  { name: "A4", w: 1654, h: 2339 },
-  { name: "US_Letter", w: 1700, h: 2200 },
+  { name: "A4", w: 1240, h: 1754 },
 ];
 
 // 한 사이즈 전체 번들 PDF
