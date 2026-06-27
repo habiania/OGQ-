@@ -31,6 +31,13 @@ const TOOLS: Tool[] = [
     desc: "목차 입력 → AI 집필 → KDP 메타데이터 → PDF 다운로드 (아마존 전자책)",
     status: "ready",
   },
+  {
+    href: "/etsy",
+    icon: "🏷️",
+    title: "Etsy 디지털 상품 메이커",
+    desc: "주제 → AI 문구 → 명언 포스터·인용구 카드 자동 디자인 → ZIP 다운로드",
+    status: "ready",
+  },
 ];
 
 export default function Hub() {

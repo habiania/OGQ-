@@ -32,6 +32,8 @@ class OpenAIProvider implements ImageProvider {
       prompt,
       size: "1024x1024",
       background: "transparent",
+      // 비용 절감: 스티커/이모티콘은 단순 그림이라 low 품질로 충분(토큰·요금 대폭↓)
+      quality: "low",
     });
     const b64 = res.data?.[0]?.b64_json;
     if (!b64) throw new Error("OpenAI 이미지 응답이 비어 있습니다.");
