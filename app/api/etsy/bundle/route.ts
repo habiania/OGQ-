@@ -9,11 +9,11 @@ export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
-    const { theme, styleName } = (await req.json()) as { theme: string; styleName?: string };
+    const { theme, styleName, language } = (await req.json()) as { theme: string; styleName?: string; language?: string };
     const t = (theme || "minimalist life planner").trim();
 
     const st = STYLES.find((s) => s.name === styleName) || STYLES[Math.floor(Math.random() * STYLES.length)];
-    const kit = await generateListingKit("Premium Printable Planner Bundle", t, "en");
+    const kit = await generateListingKit("Premium Printable Planner Bundle", t, language === "ko" ? "ko" : "en");
     const year = String(new Date().getFullYear() + 1);
     const meta: BundleMeta = {
       title: kit.artTitle || "Life Planner",

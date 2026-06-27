@@ -20,6 +20,7 @@ export default function Etsy() {
   const [style, setStyle] = useState("auto");
   const [count, setCount] = useState(6);
   const [cols, setCols] = useState(3);
+  const [bundleLang, setBundleLang] = useState("ko"); // 번들 리스팅 언어
   const [images, setImages] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -60,7 +61,7 @@ export default function Etsy() {
         if (r.error) throw new Error(r.error);
         setPreviews(r.previews || []); setZip(r.zipB64 || "");
       } else if (type === "planner") {
-        const res = await fetch("/api/etsy/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) });
+        const res = await fetch("/api/etsy/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme, language: bundleLang }) });
         const txt = await res.text();
         let r: any;
         try { r = JSON.parse(txt); }
@@ -140,6 +141,13 @@ export default function Etsy() {
           <>
             <input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="콘셉트 (예: minimal beige 2026 life planner)" disabled={loading}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm outline-none focus:border-zinc-500" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-400">리스팅 언어</span>
+              {[["ko", "한국어"], ["en", "English (Etsy 권장)"]].map(([v, l]) => (
+                <button key={v} onClick={() => setBundleLang(v)} disabled={loading}
+                  className={`rounded-full border px-3 py-1 text-xs ${bundleLang === v ? "border-emerald-500 bg-emerald-500/10 text-emerald-300" : "border-zinc-700 text-zinc-400"}`}>{l}</button>
+              ))}
+            </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-[12px] text-zinc-400">
               <b className="text-zinc-200">원버튼 프리미엄 번들</b> — 표지·웰컴·인덱스·연간목표·비전보드·12개월 캘린더·먼슬리/위클리/데일리·예산·지출·저축·부채·습관·기분·운동·물·독서·비밀번호·노트·리플렉션 등 <b className="text-emerald-300">30+페이지</b>를 프리미엄 스타일(랜덤)로 생성 → A4+US Letter PDF + 목업 + Etsy 리스팅 + 라이선스를 ZIP으로.
               <div className="mt-1 text-amber-400/80">※ 생성에 약 1~2분 소요됩니다 (전 페이지 디자인).</div>
