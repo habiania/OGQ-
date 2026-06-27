@@ -24,13 +24,14 @@ export default function Etsy() {
 
   const [loading, setLoading] = useState(false);
   const [mockup, setMockup] = useState("");
+  const [grid, setGrid] = useState("");
   const [kit, setKit] = useState<Kit | null>(null);
   const [previews, setPreviews] = useState<string[]>([]);
   const [zip, setZip] = useState("");
   const [pdf, setPdf] = useState("");
   const [error, setError] = useState("");
 
-  function reset() { setMockup(""); setKit(null); setPreviews([]); setZip(""); setPdf(""); }
+  function reset() { setMockup(""); setGrid(""); setKit(null); setPreviews([]); setZip(""); setPdf(""); }
 
   async function onFiles(files: FileList | null) {
     if (!files) return;
@@ -61,7 +62,7 @@ export default function Etsy() {
       } else if (type === "planner") {
         const r = await (await fetch("/api/etsy/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) })).json();
         if (r.error) throw new Error(r.error);
-        setMockup(r.mockupB64); setKit(r.kit); setZip(r.zipB64);
+        setMockup(r.mockupB64); setGrid(r.gridB64 || ""); setKit(r.kit); setZip(r.zipB64);
       } else {
         if (!images.length) throw new Error("이미지를 올리세요.");
         const r = await (await fetch("/api/etsy/stickersheet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ images, cols }) })).json();
@@ -167,8 +168,12 @@ export default function Etsy() {
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={mockup} alt="mockup" className="w-full rounded-xl border border-zinc-800" />
-            {zip && <a href={zip} download="etsy-wallart.zip" className="mt-3 block rounded-lg bg-sky-500 px-4 py-2.5 text-center text-sm font-semibold text-zinc-950">⬇ 전체 ZIP (7사이즈+목업+리스팅)</a>}
-            <div className="mt-2 text-center text-xs text-amber-300">상업성 {kit.commercialScore}/100 · {kit.commercialReason}</div>
+            {grid && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={grid} alt="pages preview" className="mt-3 w-full rounded-xl border border-zinc-800" />
+            )}
+            {zip && <a href={zip} download="etsy-bundle.zip" className="mt-3 block rounded-lg bg-sky-500 px-4 py-2.5 text-center text-sm font-semibold text-zinc-950">⬇ 전체 ZIP (PDF+목업+미리보기+리스팅)</a>}
+            <div className="mt-2 text-center text-xs text-amber-300">상업성/품질 {kit.commercialScore}/100 · {kit.commercialReason}</div>
           </div>
           <div className="space-y-2 text-sm">
             <Kv label="상품 제목" v={kit.productTitle} />

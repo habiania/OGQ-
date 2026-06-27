@@ -284,22 +284,21 @@ function bundleSequence(): { key: string; title: string; monthIdx?: number }[] {
 
 export function pageCount(): number { return bundleSequence().length; }
 
-function renderOnePage(key: string, monthTitle: string | undefined, W: number, H: number, st: Style, meta: BundleMeta): Buffer {
+function renderPageCanvas(key: string, monthTitle: string | undefined, W: number, H: number, st: Style, meta: BundleMeta) {
   ensureFont();
   const c = createCanvas(W, H); const ctx = c.getContext("2d");
   ctx.fillStyle = st.bg; ctx.fillRect(0, 0, W, H);
   const M = W * 0.085;
   const page = PAGES.find((p) => p.key === key)!;
+  page.draw(ctx, W, H, M, st, meta);
   if (key === "calendar" && monthTitle) {
-    // 월 이름 주입
-    const orig = page.draw;
-    orig(ctx, W, H, M, st, meta);
     ctx.fillStyle = st.ink; ctx.font = `bold ${W * 0.045}px "${FB}"`; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     ctx.fillText(monthTitle, M, M * 1.7);
-  } else {
-    page.draw(ctx, W, H, M, st, meta);
   }
-  return c.toBuffer("image/png");
+  return c;
+}
+function renderOnePage(key: string, monthTitle: string | undefined, W: number, H: number, st: Style, meta: BundleMeta): Buffer {
+  return renderPageCanvas(key, monthTitle, W, H, st, meta).toBuffer("image/png");
 }
 
 export interface SizeDef { name: string; w: number; h: number }
@@ -341,5 +340,27 @@ export async function bundleMockup(st: Style, meta: BundleMeta): Promise<Buffer>
   ctx.drawImage(cov, x, y, w, h);
   ctx.fillStyle = st.ink; ctx.textAlign = "center"; ctx.font = `bold 30px "${FB}"`;
   ctx.fillText(`${bundleSequence().length} Pages · ${st.name}`, S / 2, S * 0.93);
+  return c.toBuffer("image/png");
+}
+
+// Etsy 리스팅용 "전 페이지 미리보기 그리드" (포함 내역 이미지)
+export function previewGrid(st: Style, meta: BundleMeta): Buffer {
+  ensureFont();
+  const seq = bundleSequence();
+  const cols = 6, cell = 300, ch = Math.round(cell * 1.414), gap = 22, pad = 60, top = 150;
+  const rows = Math.ceil(seq.length / cols);
+  const W = pad * 2 + cols * cell + (cols - 1) * gap;
+  const H = top + pad + rows * ch + (rows - 1) * gap + 40;
+  const c = createCanvas(W, H); const ctx = c.getContext("2d");
+  ctx.fillStyle = "#f3f1ec"; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#2b2b2b"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.font = `bold 64px "${FB}"`; ctx.fillText(`${seq.length} PRINTABLE PAGES`, W / 2, 70);
+  ctx.fillStyle = "#8a8a8a"; ctx.font = `400 30px "${FR}"`; ctx.fillText(`${st.name} · A4 + US Letter · Instant Download`, W / 2, 116);
+  seq.forEach((pg, i) => {
+    const x = pad + (i % cols) * (cell + gap), y = top + Math.floor(i / cols) * (ch + gap);
+    const mini = renderPageCanvas(pg.key, pg.title, cell, ch, st, meta);
+    ctx.drawImage(mini, x, y, cell, ch);
+    ctx.strokeStyle = "#00000012"; ctx.lineWidth = 1; ctx.strokeRect(x, y, cell, ch);
+  });
   return c.toBuffer("image/png");
 }

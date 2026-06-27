@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import JSZip from "jszip";
 import { generateListingKit } from "@/lib/etsy";
-import { STYLES, BUNDLE_SIZES, buildBundlePdf, coverThumbnail, bundleMockup, pageCount, BundleMeta } from "@/lib/plannerbundle";
+import { STYLES, BUNDLE_SIZES, buildBundlePdf, coverThumbnail, bundleMockup, previewGrid, pageCount, BundleMeta } from "@/lib/plannerbundle";
 import { humanizeError } from "@/lib/errors";
 
 export const runtime = "nodejs";
@@ -28,8 +28,10 @@ export async function POST(req: NextRequest) {
     }
     const cover = coverThumbnail(st, meta);
     const mockup = await bundleMockup(st, meta);
+    const grid = previewGrid(st, meta);
     zip.file("cover-thumbnail.png", cover);
-    zip.file("mockup-preview.png", mockup);
+    zip.file("listing-mockup.png", mockup);
+    zip.file("listing-pages-preview.png", grid);
 
     const listingTxt = [
       `[PRODUCT TITLE]\n${kit.productTitle}`,
@@ -54,6 +56,7 @@ export async function POST(req: NextRequest) {
       pages: pageCount(),
       coverB64: `data:image/png;base64,${cover.toString("base64")}`,
       mockupB64: `data:image/png;base64,${mockup.toString("base64")}`,
+      gridB64: `data:image/png;base64,${grid.toString("base64")}`,
       zipB64: `data:application/zip;base64,${zipBuf.toString("base64")}`,
       qualityScore: Math.max(95, kit.commercialScore),
     });
