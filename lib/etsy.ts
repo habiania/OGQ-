@@ -110,3 +110,21 @@ export function composeCard(q: Quote, idx: number): Buffer {
   }
   return c.toBuffer("image/png");
 }
+
+// 플래너용 항목 생성 (체크리스트/습관) — 테마 주면 Gemini가 생성
+export async function generateListItems(theme: string, count: number, kind: "checklist" | "habit", language: string): Promise<string[]> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return [];
+  try {
+    const ai = new GoogleGenAI({ apiKey: key });
+    const lang = language === "en" ? "English" : "한국어";
+    const what = kind === "habit" ? "매일 실천할 습관 항목(짧게)" : "체크리스트 항목(짧게)";
+    const res = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `주제 "${theme}"에 대한 ${what} ${count}개를 ${lang}로. JSON으로만: {"items":["",""]}`,
+      config: { responseMimeType: "application/json" },
+    });
+    const p = JSON.parse(res.text || "{}");
+    return (p.items || []).slice(0, count);
+  } catch { return []; }
+}
