@@ -1,94 +1,123 @@
 import PDFDocument from "pdfkit";
+import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import path from "path";
 
 export type PlannerPage = "daily" | "weekly" | "checklist" | "habit";
 
-const FONT_REG = path.join(process.cwd(), "assets/fonts/NanumGothic.ttf");
-const FONT_BOLD = path.join(process.cwd(), "assets/fonts/NanumGothicBold.ttf");
+let FR = "sans-serif", FB = "sans-serif", fontReady = false;
+function ensureFont() {
+  if (fontReady) return; fontReady = true;
+  try { if (GlobalFonts.registerFromPath(path.join(process.cwd(), "assets/fonts/NanumGothic.ttf"), "PlR")) FR = "PlR"; } catch {}
+  try { if (GlobalFonts.registerFromPath(path.join(process.cwd(), "assets/fonts/NanumGothicBold.ttf"), "PlB")) FB = "PlB"; } catch {}
+}
 
 export interface PlannerInput {
   title: string;
   pages: PlannerPage[];
-  checklistItems?: string[]; // AI 생성 체크리스트 항목(선택)
-  habits?: string[]; // 습관 트래커 항목(선택)
+  checklistItems?: string[];
+  habits?: string[];
+  palette?: number;
+}
+
+// 부드러운 프리미엄 팔레트 (배경, 잉크, 액센트, 연한면)
+const PALS: [string, string, string, string][] = [
+  ["#fbf7f2", "#3b352e", "#c08552", "#efe3d6"], // warm sand
+  ["#f4f7f4", "#2f3e2e", "#7e9b6b", "#e3ece0"], // sage
+  ["#f6f3fb", "#332b45", "#8a7bb0", "#e8e2f3"], // lavender
+  ["#fdf4f4", "#4a3535", "#d08a8a", "#f3e2e2"], // blush
+];
+
+const A4 = { w: 1240, h: 1754 }; // 150dpi
+
+function pageCanvas(title: string, sub: string, pal: [string, string, string, string]) {
+  ensureFont();
+  const { w, h } = A4;
+  const c = createCanvas(w, h); const ctx = c.getContext("2d");
+  const [bg, ink, acc, soft] = pal;
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+  // 헤더 밴드
+  ctx.fillStyle = acc; ctx.fillRect(0, 0, w, 150);
+  ctx.fillStyle = "#ffffff"; ctx.textBaseline = "middle";
+  ctx.font = `bold 52px "${FB}"`; ctx.textAlign = "left";
+  ctx.fillText(title, 70, 70);
+  if (sub) { ctx.font = `400 26px "${FR}"`; ctx.fillStyle = "#ffffffcc"; ctx.fillText(sub, 70, 116); }
+  return { c, ctx, w, h, ink, acc, soft };
+}
+
+function sectionTitle(ctx: any, t: string, x: number, y: number, ink: string, acc: string, FBn: string) {
+  ctx.fillStyle = acc; ctx.fillRect(x, y, 8, 30);
+  ctx.fillStyle = ink; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.font = `bold 30px "${FBn}"`; ctx.fillText(t, x + 22, y + 16);
+}
+function checkboxRow(ctx: any, x: number, y: number, w: number, label: string, ink: string, soft: string, FRn: string) {
+  ctx.fillStyle = soft; roundRect(ctx, x, y, w, 52, 12); ctx.fill();
+  ctx.strokeStyle = "#0000001a"; ctx.lineWidth = 2; roundRect(ctx, x + 16, y + 14, 24, 24, 6); ctx.stroke();
+  if (label) { ctx.fillStyle = ink; ctx.font = `400 24px "${FRn}"`; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(label, x + 56, y + 27); }
+}
+function roundRect(ctx: any, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+export function renderPage(kind: PlannerPage, title: string, pal: [string, string, string, string], items?: string[], habits?: string[]): Buffer {
+  const titleMap = { daily: "DAILY PLANNER", weekly: "WEEKLY PLANNER", checklist: "CHECKLIST", habit: "HABIT TRACKER" };
+  const { c, ctx, w, h, ink, acc, soft } = pageCanvas(title || titleMap[kind], kind === "daily" ? "Date:  ____ . ____ . ____" : "", pal);
+  const M = 70; const CW = w - M * 2;
+  let y = 210;
+
+  if (kind === "daily") {
+    sectionTitle(ctx, "TOP PRIORITIES", M, y, ink, acc, FB); y += 56;
+    for (let i = 0; i < 3; i++) { checkboxRow(ctx, M, y, CW, "", ink, soft, FR); y += 64; }
+    y += 20;
+    sectionTitle(ctx, "TO-DO", M, y, ink, acc, FB); y += 56;
+    for (let i = 0; i < 6; i++) { checkboxRow(ctx, M, y, CW, "", ink, soft, FR); y += 64; }
+    y += 20;
+    sectionTitle(ctx, "NOTES", M, y, ink, acc, FB); y += 50;
+    ctx.fillStyle = soft; roundRect(ctx, M, y, CW, h - y - 80, 14); ctx.fill();
+  } else if (kind === "checklist") {
+    const list = items && items.length ? items : new Array(12).fill("");
+    for (const it of list) { checkboxRow(ctx, M, y, CW, it, ink, soft, FR); y += 64; if (y > h - 90) break; }
+  } else if (kind === "habit") {
+    const hs = habits && habits.length ? habits : new Array(8).fill("");
+    sectionTitle(ctx, "HABITS", M, y, ink, acc, FB); y += 60;
+    const days = 31, labelW = 280, gridW = CW - labelW, colW = gridW / days;
+    ctx.font = `400 12px "${FR}"`; ctx.fillStyle = ink + "99"; ctx.textAlign = "center";
+    for (let d = 0; d < days; d++) ctx.fillText(String(d + 1), M + labelW + d * colW + colW / 2, y - 12);
+    for (const hh of hs) {
+      ctx.fillStyle = soft; roundRect(ctx, M, y, labelW - 12, 40, 8); ctx.fill();
+      ctx.fillStyle = ink; ctx.font = `400 20px "${FR}"`; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.fillText(hh || "", M + 14, y + 21);
+      for (let d = 0; d < days; d++) { ctx.strokeStyle = "#0000001a"; ctx.lineWidth = 1; ctx.strokeRect(M + labelW + d * colW + 1, y + 4, colW - 2, 32); }
+      y += 50;
+    }
+  } else { // weekly
+    const dn = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+    const cardH = (h - y - 80) / 7;
+    for (const d of dn) {
+      ctx.fillStyle = soft; roundRect(ctx, M, y, CW, cardH - 14, 12); ctx.fill();
+      ctx.fillStyle = acc; ctx.font = `bold 24px "${FB}"`; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.fillText(d, M + 20, y + cardH / 2 - 6);
+      ctx.strokeStyle = "#00000012"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(M + 110, y + (cardH - 14) / 2); ctx.lineTo(M + CW - 24, y + (cardH - 14) / 2); ctx.stroke();
+      y += cardH;
+    }
+  }
+  return c.toBuffer("image/png");
 }
 
 export function buildPlannerPdf(input: PlannerInput): Promise<Buffer> {
-  const doc = new PDFDocument({ size: "A4", margins: { top: 56, bottom: 56, left: 56, right: 56 }, bufferPages: true });
+  const pal = PALS[(input.palette ?? Math.floor(Math.random() * PALS.length)) % PALS.length];
+  const doc = new PDFDocument({ size: "A4", margin: 0, bufferPages: true });
   const chunks: Buffer[] = [];
   doc.on("data", (c) => chunks.push(c as Buffer));
   const done = new Promise<Buffer>((r) => doc.on("end", () => r(Buffer.concat(chunks))));
-
-  let REG = "Helvetica", BOLD = "Helvetica-Bold";
-  try { doc.registerFont("KR", FONT_REG); REG = "KR"; } catch {}
-  try { doc.registerFont("KRB", FONT_BOLD); BOLD = "KRB"; } catch {}
-  const L = doc.page.margins.left;
-  const W = doc.page.width - L - doc.page.margins.right;
-  const accent = "#10b981";
-
-  const header = (t: string) => {
-    doc.font(BOLD).fontSize(26).fillColor("#111827").text(t, L, 56);
-    doc.moveTo(L, 96).lineTo(L + W, 96).lineWidth(2).strokeColor(accent).stroke();
-    doc.y = 116;
-  };
-  const lines = (n: number, gap = 30) => {
-    let y = doc.y;
-    for (let i = 0; i < n; i++) {
-      doc.moveTo(L, y).lineTo(L + W, y).lineWidth(0.7).strokeColor("#d1d5db").stroke();
-      y += gap;
-    }
-    doc.y = y;
-  };
-  const checkLines = (items: string[] | undefined, n: number) => {
-    let y = doc.y;
-    const list = items && items.length ? items : new Array(n).fill("");
-    for (const it of list) {
-      doc.lineWidth(1).strokeColor("#9ca3af").rect(L, y, 16, 16).stroke();
-      if (it) doc.font(REG).fontSize(13).fillColor("#374151").text(it, L + 26, y + 1, { width: W - 26 });
-      y += 34;
-    }
-    doc.y = y;
-  };
+  const PW = doc.page.width, PH = doc.page.height;
 
   input.pages.forEach((p, idx) => {
     if (idx > 0) doc.addPage();
-    if (p === "daily") {
-      header(input.title || "Daily Planner");
-      doc.font(REG).fontSize(13).fillColor("#6b7280").text("날짜:  ____ . ____ . ____", L, doc.y).moveDown(1);
-      doc.font(BOLD).fontSize(15).fillColor(accent).text("오늘의 할 일", L, doc.y).moveDown(0.5);
-      checkLines(undefined, 8);
-      doc.moveDown(0.5);
-      doc.font(BOLD).fontSize(15).fillColor(accent).text("메모", L, doc.y).moveDown(0.5);
-      lines(6);
-    } else if (p === "weekly") {
-      header(input.title || "Weekly Planner");
-      const days = ["월", "화", "수", "목", "금", "토", "일"];
-      let y = doc.y;
-      for (const d of days) {
-        doc.font(BOLD).fontSize(14).fillColor("#111827").text(d, L, y + 6);
-        doc.moveTo(L + 40, y + 24).lineTo(L + W, y + 24).lineWidth(0.7).strokeColor("#d1d5db").stroke();
-        doc.moveTo(L + 40, y + 54).lineTo(L + W, y + 54).lineWidth(0.7).strokeColor("#d1d5db").stroke();
-        y += 90;
-      }
-    } else if (p === "checklist") {
-      header(input.title || "Checklist");
-      checkLines(input.checklistItems, 14);
-    } else if (p === "habit") {
-      header(input.title || "Habit Tracker");
-      const habits = input.habits && input.habits.length ? input.habits : new Array(8).fill("");
-      const days = 31;
-      const colW = (W - 160) / days;
-      let y = doc.y + 10;
-      // 헤더(날짜 1~31)
-      doc.font(REG).fontSize(6).fillColor("#9ca3af");
-      for (let d = 0; d < days; d++) doc.text(String(d + 1), L + 160 + d * colW, y, { width: colW, align: "center" });
-      y += 16;
-      for (const h of habits) {
-        doc.font(REG).fontSize(11).fillColor("#374151").text(h || "____________", L, y, { width: 150 });
-        for (let d = 0; d < days; d++) doc.rect(L + 160 + d * colW + 1, y - 2, colW - 2, 16).lineWidth(0.5).strokeColor("#d1d5db").stroke();
-        y += 24;
-      }
-    }
+    const png = renderPage(p, input.title, pal, input.checklistItems, input.habits);
+    try { doc.image(png, 0, 0, { width: PW, height: PH }); } catch {}
   });
 
   doc.end();
