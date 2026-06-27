@@ -45,6 +45,28 @@ export default function StickerTool() {
   const [error, setError] = useState<string>("");
 
   const [regenN, setRegenN] = useState<number | null>(null);
+  const [gifs, setGifs] = useState<Record<number, string>>({});
+  const [gifN, setGifN] = useState<number | null>(null);
+
+  // 정적 스티커 → 움직이는 GIF
+  async function animate(n: number, b64: string) {
+    if (gifN !== null) return;
+    setGifN(n); setError("");
+    try {
+      const res = await fetch("/api/animate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageB64: b64, effect: "bounce", size: mode === "kakao" ? 360 : 740 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "GIF 생성 실패");
+      setGifs((prev) => ({ ...prev, [n]: data.gifB64 }));
+    } catch (e: any) {
+      setError(e?.message || "GIF 오류");
+    } finally {
+      setGifN(null);
+    }
+  }
   const busy = phase !== "idle" && phase !== "done";
   const done = stickers.length;
 
@@ -351,20 +373,39 @@ export default function StickerTool() {
             {stickers.map((s) => (
               <div key={s.n} className="group checker relative rounded-lg p-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={s.b64} alt={s.ko} className={`w-full object-contain ${square ? "aspect-square" : "aspect-[74/64]"}`} />
-                {regenN === s.n ? (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 text-xs text-white">
-                    다시 그리는 중…
+                <img src={gifs[s.n] || s.b64} alt={s.ko} className={`w-full object-contain ${square ? "aspect-square" : "aspect-[74/64]"}`} />
+                {regenN === s.n || gifN === s.n ? (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 text-[11px] text-white">
+                    {gifN === s.n ? "움직이는 중…" : "다시 그리는 중…"}
                   </div>
                 ) : (
-                  <button
-                    onClick={() => regenerate(s.n)}
-                    disabled={busy || regenN !== null}
-                    title="이 스티커만 다시 생성"
-                    className="absolute right-1 top-1 hidden rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] text-white group-hover:block disabled:opacity-40"
+                  <div className="absolute right-1 top-1 hidden gap-1 group-hover:flex">
+                    <button
+                      onClick={() => regenerate(s.n)}
+                      disabled={busy || regenN !== null}
+                      title="이 스티커만 다시 생성"
+                      className="rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] text-white disabled:opacity-40"
+                    >
+                      🔄
+                    </button>
+                    <button
+                      onClick={() => animate(s.n, s.b64)}
+                      disabled={gifN !== null}
+                      title="움직이는 GIF로 만들기"
+                      className="rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] text-white disabled:opacity-40"
+                    >
+                      🎞️
+                    </button>
+                  </div>
+                )}
+                {gifs[s.n] && (
+                  <a
+                    href={gifs[s.n]}
+                    download={`emoji-${s.n}.gif`}
+                    className="absolute bottom-1 left-1 right-1 hidden rounded-md bg-emerald-500/90 px-1 py-0.5 text-center text-[10px] font-semibold text-zinc-950 group-hover:block"
                   >
-                    🔄 다시
-                  </button>
+                    ⬇ GIF
+                  </a>
                 )}
               </div>
             ))}
