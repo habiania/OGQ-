@@ -128,3 +128,75 @@ export async function generateListItems(theme: string, count: number, kind: "che
     return (p.items || []).slice(0, count);
   } catch { return []; }
 }
+
+// ===== 프리미엄 Etsy 리스팅 풀세트 (상업성 평가 포함) =====
+export interface ListingKit {
+  artTitle: string;        // 작품에 들어갈 짧은 문구
+  artSubtitle: string;
+  recommendedStyle: "boho" | "colorblock" | "lineart" | "typographic";
+  productTitle: string;    // Etsy 상품 제목(키워드)
+  seoTitle: string;        // 검색 최적화 제목
+  description: string;
+  tags: string[];          // 13개
+  materials: string;
+  category: string;
+  fileList: string[];
+  downloadInstructions: string;
+  commercialScore: number; // 0~100
+  commercialReason: string;
+}
+
+export async function generateListingKit(category: string, theme: string, language: string): Promise<ListingKit> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY 가 없습니다.");
+  const ai = new GoogleGenAI({ apiKey: key });
+  const lang = language === "en" ? "English" : "한국어";
+  const prompt = `You are an expert Etsy digital-product seller. Create a READY-TO-SELL listing for a printable "${category}" on the theme "${theme}".
+Prioritize commercial success on Etsy: high demand, evergreen, high perceived value. Original only — never imitate copyrighted art/brands.
+Write description/tags in ${lang === "English" ? "English" : "Korean"} (Etsy tags should be lowercase short phrases).
+
+Respond JSON only:
+{
+ "artTitle": "short phrase printed on the art (1-4 words)",
+ "artSubtitle": "tiny subtitle or empty",
+ "recommendedStyle": "boho | colorblock | lineart | typographic",
+ "productTitle": "keyword-rich Etsy title (<=140 chars)",
+ "seoTitle": "SEO optimized title",
+ "description": "compelling 4-6 sentence product description",
+ "tags": ["13 etsy tags, each <=20 chars"],
+ "materials": "e.g. Digital file, PNG, PDF",
+ "category": "etsy category path",
+ "fileList": ["list of included files e.g. A4 300DPI PNG, ..."],
+ "downloadInstructions": "how the buyer downloads & prints",
+ "commercialScore": <integer 0-100, where 80+ means strong evergreen seller>,
+ "commercialReason": "why this sells well (1 line)"
+}`;
+  let last: any = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt, config: { responseMimeType: "application/json" } });
+      const p = JSON.parse(res.text || "{}");
+      const style = ["boho", "colorblock", "lineart", "typographic"].includes(p.recommendedStyle) ? p.recommendedStyle : "boho";
+      return {
+        artTitle: p.artTitle || theme,
+        artSubtitle: p.artSubtitle || "",
+        recommendedStyle: style,
+        productTitle: p.productTitle || "",
+        seoTitle: p.seoTitle || "",
+        description: p.description || "",
+        tags: (p.tags || []).slice(0, 13),
+        materials: p.materials || "Digital download (PNG)",
+        category: p.category || category,
+        fileList: p.fileList || [],
+        downloadInstructions: p.downloadInstructions || "",
+        commercialScore: Number(p.commercialScore) || 0,
+        commercialReason: p.commercialReason || "",
+      };
+    } catch (e: any) {
+      last = e; const m = (e?.message || "").toLowerCase();
+      if (!(m.includes("503") || m.includes("overload") || m.includes("unavailable") || m.includes("429")) || i === 2) break;
+      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+    }
+  }
+  throw last;
+}
