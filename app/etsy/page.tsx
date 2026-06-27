@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 type Type = "wallart" | "card" | "planner" | "stickersheet";
-const PLANNER_PAGES: [string, string][] = [["daily", "데일리"], ["weekly", "위클리"], ["checklist", "체크리스트"], ["habit", "습관 트래커"]];
 const CATEGORIES = ["Printable Wall Art", "Quote Art", "Nursery / Kids Art", "Affirmation Art", "Botanical Art", "Mid-Century Art", "Boho Decor", "Office / Motivational"];
 const STYLES: [string, string][] = [["auto", "자동 추천"], ["boho", "보호/아치"], ["colorblock", "미드센추리"], ["lineart", "라인아트"], ["typographic", "타이포"]];
 
@@ -20,8 +19,6 @@ export default function Etsy() {
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [style, setStyle] = useState("auto");
   const [count, setCount] = useState(6);
-  const [plannerPages, setPlannerPages] = useState<string[]>(["daily", "checklist"]);
-  const [plannerTitle, setPlannerTitle] = useState("");
   const [cols, setCols] = useState(3);
   const [images, setImages] = useState<string[]>([]);
 
@@ -33,7 +30,6 @@ export default function Etsy() {
   const [pdf, setPdf] = useState("");
   const [error, setError] = useState("");
 
-  function togglePage(p: string) { setPlannerPages((s) => (s.includes(p) ? s.filter((x) => x !== p) : [...s, p])); }
   function reset() { setMockup(""); setKit(null); setPreviews([]); setZip(""); setPdf(""); }
 
   async function onFiles(files: FileList | null) {
@@ -63,10 +59,9 @@ export default function Etsy() {
         if (r.error) throw new Error(r.error);
         setPreviews(r.previews || []); setZip(r.zipB64 || "");
       } else if (type === "planner") {
-        if (!plannerPages.length) throw new Error("페이지 종류를 선택하세요.");
-        const r = await (await fetch("/api/etsy/planner", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: plannerTitle, pages: plannerPages, theme, language }) })).json();
+        const r = await (await fetch("/api/etsy/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) })).json();
         if (r.error) throw new Error(r.error);
-        setPdf(r.pdfB64 || "");
+        setMockup(r.mockupB64); setKit(r.kit); setZip(r.zipB64);
       } else {
         if (!images.length) throw new Error("이미지를 올리세요.");
         const r = await (await fetch("/api/etsy/stickersheet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ images, cols }) })).json();
@@ -80,7 +75,7 @@ export default function Etsy() {
   const TYPES: [Type, string, string][] = [
     ["wallart", "🖼️ 프리미엄 월아트", "7사이즈+목업+리스팅"],
     ["card", "💬 인용구 카드", "1080 정사각"],
-    ["planner", "🗓️ 플래너", "PDF 템플릿"],
+    ["planner", "🗓️ 프리미엄 플래너 번들", "30+p·원버튼"],
     ["stickersheet", "🔖 스티커 시트", "이미지→PDF"],
   ];
 
@@ -138,17 +133,11 @@ export default function Etsy() {
 
         {type === "planner" && (
           <>
-            <input value={plannerTitle} onChange={(e) => setPlannerTitle(e.target.value)} placeholder="플래너 제목" disabled={loading}
+            <input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="콘셉트 (예: minimal beige 2026 life planner)" disabled={loading}
               className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm outline-none focus:border-zinc-500" />
-            <div className="flex flex-wrap gap-1.5">
-              {PLANNER_PAGES.map(([v, l]) => (
-                <button key={v} onClick={() => togglePage(v)} disabled={loading}
-                  className={`rounded-full border px-3 py-1 text-xs ${plannerPages.includes(v) ? "border-emerald-500 bg-emerald-500/10 text-emerald-300" : "border-zinc-700 text-zinc-400"}`}>{l}</button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              <input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="주제(선택) — AI가 체크리스트·습관 항목 채움" disabled={loading}
-                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500" />
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-[12px] text-zinc-400">
+              <b className="text-zinc-200">원버튼 프리미엄 번들</b> — 표지·웰컴·인덱스·연간목표·비전보드·12개월 캘린더·먼슬리/위클리/데일리·예산·지출·저축·부채·습관·기분·운동·물·독서·비밀번호·노트·리플렉션 등 <b className="text-emerald-300">30+페이지</b>를 프리미엄 스타일(랜덤)로 생성 → A4+US Letter PDF + 목업 + Etsy 리스팅 + 라이선스를 ZIP으로.
+              <div className="mt-1 text-amber-400/80">※ 생성에 약 1~2분 소요됩니다 (전 페이지 디자인).</div>
             </div>
           </>
         )}
