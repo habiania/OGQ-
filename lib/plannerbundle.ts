@@ -271,18 +271,97 @@ const PAGES: Page[] = [
     let y = M * 1.8;
     for (const p of prompts) { label(ctx, p, M, y + W * 0.03, W * 0.03, st.acc); vlines(ctx, M, y + W * 0.055, W - M * 2, 3, W * 0.04, st.soft); y += W * 0.2; }
   }},
+  // ===== 니치 전용 페이지 =====
+  { key: "braindump", title: "Brain Dump", draw: (ctx, W, H, M, st) => {
+    header(ctx, W, M, "Brain Dump", st);
+    const cols = 2, cw = (W - M * 2 - W * 0.04) / 2;
+    for (let cI = 0; cI < cols; cI++) { const x = M + cI * (cw + W * 0.04); ctx.fillStyle = st.soft; rr(ctx, x, M * 1.7, cw, H - M * 2.7, W * 0.012); ctx.fill(); }
+  }},
+  { key: "lessonplan", title: "Lesson Plan", draw: (ctx, W, H, M, st) => {
+    header(ctx, W, M, "Lesson Plan", st);
+    label(ctx, "SUBJECT", M, M * 1.8, W * 0.03, st.acc); vlines(ctx, M + W * 0.18, M * 1.78, (W - M * 2) * 0.4, 1, 0, st.soft);
+    label(ctx, "DATE", W * 0.6, M * 1.8, W * 0.03, st.acc); vlines(ctx, W * 0.72, M * 1.78, W - M - W * 0.72, 1, 0, st.soft);
+    const secs = ["Objectives", "Materials", "Activities", "Assessment", "Homework"]; let y = M * 2.2;
+    for (const s of secs) { label(ctx, s, M, y + W * 0.03, W * 0.028, st.ink); vlines(ctx, M, y + W * 0.055, W - M * 2, 2, W * 0.04, st.soft); y += W * 0.14; }
+  }},
+  { key: "attendance", title: "Attendance", draw: (ctx, W, H, M, st) => {
+    header(ctx, W, M, "Attendance", st);
+    const labelW = W * 0.3, days = 20, gw = W - M * 2 - labelW, colW = gw / days, y0 = M * 1.9, rows = 16, rh = (H - M * 2 - y0 + M) / rows;
+    ctx.fillStyle = st.muted; ctx.font = `400 ${W * 0.012}px "${FR}"`; ctx.textAlign = "center";
+    for (let d = 0; d < days; d++) ctx.fillText(String(d + 1), M + labelW + d * colW + colW / 2, y0 - W * 0.008);
+    for (let r = 0; r < rows; r++) { const y = y0 + r * rh; ctx.fillStyle = st.soft; rr(ctx, M, y, labelW - W * 0.01, rh - 5, W * 0.005); ctx.fill();
+      for (let d = 0; d < days; d++) { ctx.strokeStyle = st.soft; ctx.lineWidth = 1; ctx.strokeRect(M + labelW + d * colW, y, colW, rh - 5); } }
+  }},
+  { key: "gradetracker", title: "Grade Tracker", draw: (ctx, W, H, M, st) => { header(ctx, W, M, "Grade Tracker", st); grid(ctx, M, M * 1.8, W - M * 2, H - M * 2.6, 4, 16, st, ["STUDENT", "ASSIGNMENT", "SCORE", "GRADE"]); }},
+  { key: "parentnotes", title: "Parent Notes", draw: (ctx, W, H, M, st) => { header(ctx, W, M, "Parent Communication", st); grid(ctx, M, M * 1.8, W - M * 2, H - M * 2.6, 3, 14, st, ["DATE", "STUDENT", "NOTES"]); }},
+  { key: "contentcal", title: "Content Calendar", draw: (ctx, W, H, M, st) => { header(ctx, W, M, "Content Calendar", st); grid(ctx, M, M * 1.8, W - M * 2, H - M * 2.6, 4, 16, st, ["DATE", "PLATFORM", "CONTENT IDEA", "STATUS"]); }},
+  { key: "videoplan", title: "Video Planner", draw: (ctx, W, H, M, st) => {
+    header(ctx, W, M, "Video / Post Planner", st);
+    const secs = ["Title", "Hook", "Main Points", "Call To Action", "Hashtags"]; let y = M * 1.8;
+    for (const s of secs) { label(ctx, s, M, y + W * 0.03, W * 0.028, st.acc); vlines(ctx, M, y + W * 0.055, W - M * 2, 2, W * 0.04, st.soft); y += W * 0.15; }
+  }},
+  { key: "keywords", title: "Keyword Research", draw: (ctx, W, H, M, st) => { header(ctx, W, M, "Keyword Research", st); grid(ctx, M, M * 1.8, W - M * 2, H - M * 2.6, 4, 18, st, ["KEYWORD", "VOLUME", "DIFFICULTY", "USE?"]); }},
+  { key: "affiliate", title: "Affiliate Tracker", draw: (ctx, W, H, M, st) => { header(ctx, W, M, "Affiliate Tracker", st); grid(ctx, M, M * 1.8, W - M * 2, H - M * 2.6, 4, 16, st, ["PRODUCT", "LINK", "CLICKS", "EARNINGS"]); }},
+  { key: "branddeals", title: "Brand Deals", draw: (ctx, W, H, M, st) => { header(ctx, W, M, "Brand Deals", st); grid(ctx, M, M * 1.8, W - M * 2, H - M * 2.6, 4, 14, st, ["BRAND", "DELIVERABLE", "FEE", "STATUS"]); }},
+  { key: "analytics", title: "Analytics", draw: (ctx, W, H, M, st) => {
+    header(ctx, W, M, "Monthly Analytics", st);
+    const stats = ["Followers", "Views", "Engagement", "Revenue"]; const cw = (W - M * 2 - W * 0.06) / 4;
+    stats.forEach((s, i) => { const x = M + i * (cw + W * 0.02); ctx.fillStyle = st.soft; rr(ctx, x, M * 1.7, cw, W * 0.18, W * 0.012); ctx.fill();
+      label(ctx, s, x + W * 0.015, M * 1.7 + W * 0.04, W * 0.022, st.muted); });
+    grid(ctx, M, M * 1.7 + W * 0.24, W - M * 2, H - (M * 1.7 + W * 0.24) - M, 3, 12, st, ["DATE", "METRIC", "VALUE"]);
+  }},
+  { key: "bills", title: "Bills Tracker", draw: (ctx, W, H, M, st) => { header(ctx, W, M, "Bills Tracker", st); grid(ctx, M, M * 1.8, W - M * 2, H - M * 2.6, 4, 18, st, ["BILL", "DUE DATE", "AMOUNT", "PAID"]); }},
+  { key: "subscriptions", title: "Subscriptions", draw: (ctx, W, H, M, st) => { header(ctx, W, M, "Subscription Tracker", st); grid(ctx, M, M * 1.8, W - M * 2, H - M * 2.6, 4, 16, st, ["SERVICE", "COST", "RENEWAL", "CANCEL?"]); }},
+  { key: "gratitude", title: "Gratitude", draw: (ctx, W, H, M, st) => {
+    header(ctx, W, M, "Gratitude Journal", st);
+    const days = 7; const rh = (H - M * 1.9) / days;
+    for (let i = 0; i < days; i++) { const y = M * 1.7 + i * rh; ctx.fillStyle = st.acc; ctx.beginPath(); ctx.arc(M + W * 0.01, y + rh * 0.3, W * 0.008, 0, 7); ctx.fill();
+      vlines(ctx, M + W * 0.04, y + rh * 0.5, W - M * 2 - W * 0.04, 2, rh * 0.28, st.soft); }
+  }},
+  { key: "selfcare", title: "Self Care", draw: (ctx, W, H, M, st) => {
+    header(ctx, W, M, "Self Care Checklist", st);
+    const cats = ["Mind", "Body", "Soul", "Social"]; const cols = 2, cw = (W - M * 2) / cols, ch = (H - M * 2.2) / 2;
+    cats.forEach((cat, i) => { const x = M + (i % cols) * cw, y = M * 1.7 + Math.floor(i / cols) * ch;
+      label(ctx, cat, x, y + W * 0.03, W * 0.03, st.acc); checkRows(ctx, x, y + W * 0.055, cw - W * 0.04, 5, W * 0.04, st); });
+  }},
+  { key: "goals", title: "Goal Setting", draw: (ctx, W, H, M, st) => {
+    header(ctx, W, M, "Goal Setting", st);
+    const secs = ["My Goal", "Why it matters", "Action Steps", "Deadline", "Reward"]; let y = M * 1.8;
+    for (const s of secs) { label(ctx, s, M, y + W * 0.03, W * 0.028, st.acc); vlines(ctx, M, y + W * 0.055, W - M * 2, 2, W * 0.04, st.soft); y += W * 0.15; }
+  }},
 ];
 
-// 표준 번들 페이지 순서 (12개월 캘린더 포함 → 30+ 페이지)
-function bundleSequence(): { key: string; title: string; monthIdx?: number }[] {
-  const seq: { key: string; title: string; monthIdx?: number }[] = [];
-  for (const k of ["cover", "welcome", "index", "yearlygoals", "vision"]) seq.push({ key: k, title: "" });
-  for (let m = 0; m < 12; m++) seq.push({ key: "calendar", title: MONTHS[m], monthIdx: m });
-  for (const k of ["monthly", "weekly", "daily", "priority", "timeblock", "meal", "grocery", "budget", "expense", "savings", "debt", "habit", "mood", "workout", "water", "reading", "password", "notes", "reflection"]) seq.push({ key: k, title: "" });
+// ===== 니치 정의 (검색 키워드 + 전용 페이지 구성) =====
+export interface Niche { key: string; label: string; keyword: string; pages: string[] }
+export const NICHES: Niche[] = [
+  { key: "adhd", label: "ADHD Planner", keyword: "ADHD Planner", pages: ["braindump", "priority", "daily", "timeblock", "habit", "mood", "goals", "reflection"] },
+  { key: "budget", label: "Budget Planner", keyword: "Budget Planner", pages: ["monthly", "budget", "expense", "bills", "subscriptions", "savings", "debt", "reflection"] },
+  { key: "teacher", label: "Teacher Planner", keyword: "Teacher Planner", pages: ["yearlygoals", "lessonplan", "weekly", "attendance", "gradetracker", "parentnotes", "notes"] },
+  { key: "content", label: "Content Creator Planner", keyword: "Content Creator Planner", pages: ["yearlygoals", "contentcal", "videoplan", "keywords", "affiliate", "branddeals", "analytics", "monthly"] },
+  { key: "etsyseller", label: "Etsy Seller Planner", keyword: "Etsy Seller Planner", pages: ["yearlygoals", "monthly", "expense", "keywords", "analytics", "bills", "branddeals", "notes"] },
+  { key: "smallbiz", label: "Small Business Planner", keyword: "Small Business Planner", pages: ["yearlygoals", "monthly", "expense", "bills", "subscriptions", "analytics", "goals", "notes"] },
+  { key: "fitness", label: "Fitness Planner", keyword: "Fitness Planner", pages: ["yearlygoals", "workout", "meal", "water", "habit", "mood", "reflection"] },
+  { key: "selfcare", label: "Self Care Planner", keyword: "Self Care Planner", pages: ["selfcare", "mood", "habit", "water", "gratitude", "goals", "reflection"] },
+  { key: "anxiety", label: "Anxiety Journal", keyword: "Anxiety Journal", pages: ["mood", "braindump", "gratitude", "habit", "reflection", "selfcare", "goals"] },
+  { key: "student", label: "Student Planner", keyword: "Student Planner", pages: ["yearlygoals", "weekly", "timeblock", "gradetracker", "reading", "habit", "notes"] },
+  { key: "wedding", label: "Wedding Planner", keyword: "Wedding Planner", pages: ["yearlygoals", "budget", "bills", "checklistGuests", "monthly", "notes"] },
+  { key: "meal", label: "Meal Planner", keyword: "Meal Planner", pages: ["meal", "grocery", "habit", "water", "budget", "reflection"] },
+];
+// 페이지 키 중 미정의(checklistGuests)는 notes로 대체
+function safeKey(k: string): string { return PAGES.find((p) => p.key === k) ? k : "notes"; }
+
+// 니치 기반 번들 페이지 순서
+function bundleSequence(nicheKey?: string): { key: string; title: string }[] {
+  const niche = NICHES.find((n) => n.key === nicheKey);
+  const seq: { key: string; title: string }[] = [];
+  for (const k of ["cover", "welcome", "index"]) seq.push({ key: k, title: "" });
+  for (let m = 0; m < 12; m++) seq.push({ key: "calendar", title: MONTHS[m] });
+  const pages = niche ? niche.pages : ["yearlygoals", "monthly", "weekly", "daily", "habit", "mood", "notes", "reflection"];
+  for (const k of pages) seq.push({ key: safeKey(k), title: "" });
   return seq;
 }
 
-export function pageCount(): number { return bundleSequence().length; }
+export function pageCount(nicheKey?: string): number { return bundleSequence(nicheKey).length; }
 
 function renderPageCanvas(key: string, monthTitle: string | undefined, W: number, H: number, st: Style, meta: BundleMeta) {
   ensureFont();
@@ -308,12 +387,12 @@ export const BUNDLE_SIZES: SizeDef[] = [
 ];
 
 // 한 사이즈 전체 번들 PDF
-export function buildBundlePdf(st: Style, meta: BundleMeta, size: SizeDef): Promise<Buffer> {
+export function buildBundlePdf(st: Style, meta: BundleMeta, size: SizeDef, nicheKey?: string): Promise<Buffer> {
   const doc = new PDFDocument({ size: [size.w * 0.48, size.h * 0.48], margin: 0, bufferPages: true });
   const chunks: Buffer[] = []; doc.on("data", (c) => chunks.push(c as Buffer));
   const done = new Promise<Buffer>((r) => doc.on("end", () => r(Buffer.concat(chunks))));
   const PW = doc.page.width, PH = doc.page.height;
-  bundleSequence().forEach((pg, i) => {
+  bundleSequence(nicheKey).forEach((pg, i) => {
     if (i > 0) doc.addPage({ size: [PW, PH], margin: 0 });
     const png = renderOnePage(pg.key, pg.title, size.w, size.h, st, meta);
     try { doc.image(png, 0, 0, { width: PW, height: PH }); } catch {}
@@ -328,7 +407,7 @@ export function coverThumbnail(st: Style, meta: BundleMeta): Buffer {
 }
 
 // 목업 (책상 위 인쇄물 느낌)
-export async function bundleMockup(st: Style, meta: BundleMeta): Promise<Buffer> {
+export async function bundleMockup(st: Style, meta: BundleMeta, nicheKey?: string): Promise<Buffer> {
   const { loadImage } = await import("@napi-rs/canvas");
   const S = 1200; const c = createCanvas(S, S); const ctx = c.getContext("2d");
   const g = ctx.createLinearGradient(0, 0, 0, S); g.addColorStop(0, "#eceae5"); g.addColorStop(1, "#dcd8d1");
@@ -339,14 +418,14 @@ export async function bundleMockup(st: Style, meta: BundleMeta): Promise<Buffer>
   ctx.fillStyle = "#fff"; ctx.fillRect(x - 8, y - 8, w + 16, h + 16); ctx.restore();
   ctx.drawImage(cov, x, y, w, h);
   ctx.fillStyle = st.ink; ctx.textAlign = "center"; ctx.font = `bold 30px "${FB}"`;
-  ctx.fillText(`${bundleSequence().length} Pages · ${st.name}`, S / 2, S * 0.93);
+  ctx.fillText(`${bundleSequence(nicheKey).length} Pages · ${st.name}`, S / 2, S * 0.93);
   return c.toBuffer("image/png");
 }
 
 // Etsy 리스팅용 "전 페이지 미리보기 그리드" (포함 내역 이미지)
-export function previewGrid(st: Style, meta: BundleMeta): Buffer {
+export function previewGrid(st: Style, meta: BundleMeta, nicheKey?: string): Buffer {
   ensureFont();
-  const seq = bundleSequence();
+  const seq = bundleSequence(nicheKey);
   const cols = 6, cell = 300, ch = Math.round(cell * 1.414), gap = 22, pad = 60, top = 150;
   const rows = Math.ceil(seq.length / cols);
   const W = pad * 2 + cols * cell + (cols - 1) * gap;
@@ -355,7 +434,7 @@ export function previewGrid(st: Style, meta: BundleMeta): Buffer {
   ctx.fillStyle = "#f3f1ec"; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = "#2b2b2b"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.font = `bold 64px "${FB}"`; ctx.fillText(`${seq.length} PRINTABLE PAGES`, W / 2, 70);
-  ctx.fillStyle = "#8a8a8a"; ctx.font = `400 30px "${FR}"`; ctx.fillText(`${st.name} · A4 + US Letter · Instant Download`, W / 2, 116);
+  ctx.fillStyle = "#8a8a8a"; ctx.font = `400 30px "${FR}"`; ctx.fillText(`${st.name} · A4 · Instant Download`, W / 2, 116);
   seq.forEach((pg, i) => {
     const x = pad + (i % cols) * (cell + gap), y = top + Math.floor(i / cols) * (ch + gap);
     const mini = renderPageCanvas(pg.key, pg.title, cell, ch, st, meta);

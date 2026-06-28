@@ -144,6 +144,10 @@ export interface ListingKit {
   downloadInstructions: string;
   commercialScore: number; // 0~100
   commercialReason: string;
+  features: string[];       // 제품 특징/차별점
+  targetCustomer: string;   // 타겟 고객
+  seoKeywords: string[];    // SEO 키워드
+  analysis: string;         // 상위 판매 상품 분석 + 개선 포인트
 }
 
 export async function generateListingKit(category: string, theme: string, language: string): Promise<ListingKit> {
@@ -169,7 +173,11 @@ Respond JSON only:
  "fileList": ["list of included files e.g. A4 300DPI PNG, ..."],
  "downloadInstructions": "how the buyer downloads & prints",
  "commercialScore": <integer 0-100, where 80+ means strong evergreen seller>,
- "commercialReason": "why this sells well (1 line)"
+ "commercialReason": "why this sells well (1 line)",
+ "features": ["6-8 product features / differentiators vs typical competitors"],
+ "targetCustomer": "who this is for (1-2 sentences)",
+ "seoKeywords": ["10 high-intent search keywords buyers use"],
+ "analysis": "Brief competitor analysis of top sellers for this keyword: common title patterns, what reviews praise, common gaps, and 3+ ways THIS product is better. 3-5 sentences."
 }`;
   let last: any = null;
   for (let i = 0; i < 3; i++) {
@@ -191,6 +199,10 @@ Respond JSON only:
         downloadInstructions: p.downloadInstructions || "",
         commercialScore: Number(p.commercialScore) || 0,
         commercialReason: p.commercialReason || "",
+        features: p.features || [],
+        targetCustomer: p.targetCustomer || "",
+        seoKeywords: p.seoKeywords || [],
+        analysis: p.analysis || "",
       };
     } catch (e: any) {
       last = e; const m = (e?.message || "").toLowerCase();

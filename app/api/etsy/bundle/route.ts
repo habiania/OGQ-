@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import JSZip from "jszip";
 import { generateListingKit } from "@/lib/etsy";
-import { STYLES, BUNDLE_SIZES, buildBundlePdf, coverThumbnail, bundleMockup, previewGrid, pageCount, BundleMeta } from "@/lib/plannerbundle";
+import { STYLES, NICHES, BUNDLE_SIZES, buildBundlePdf, coverThumbnail, bundleMockup, previewGrid, pageCount, BundleMeta } from "@/lib/plannerbundle";
 import { humanizeError } from "@/lib/errors";
 
 export const runtime = "nodejs";
@@ -9,51 +9,60 @@ export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
-    const { theme, styleName, language } = (await req.json()) as { theme: string; styleName?: string; language?: string };
-    const t = (theme || "minimalist life planner").trim();
+    const { niche: nicheKey, styleName, language } = (await req.json()) as { niche?: string; styleName?: string; language?: string };
 
+    // 니치 선택 (없으면 랜덤 → 매번 새로운 니치)
+    const niche = NICHES.find((n) => n.key === nicheKey) || NICHES[Math.floor(Math.random() * NICHES.length)];
     const st = STYLES.find((s) => s.name === styleName) || STYLES[Math.floor(Math.random() * STYLES.length)];
-    const kit = await generateListingKit("Premium Printable Planner Bundle", t, language === "ko" ? "ko" : "en");
     const year = String(new Date().getFullYear() + 1);
+    const lang = language === "ko" ? "ko" : "en";
+
+    // 니치 키워드 기반 리스팅 + 경쟁 분석
+    const kit = await generateListingKit(niche.keyword, `${year} ${niche.keyword}`, lang);
+
+    // SEO 우선 커버 제목 = "2027 ADHD Planner" 같은 검색 문구
     const meta: BundleMeta = {
-      title: kit.artTitle || "Life Planner",
+      title: `${year} ${niche.keyword}`,
       year,
-      welcome: kit.description || "Welcome to your premium planner.",
+      welcome: kit.description || "Welcome to your planner.",
     };
 
     const zip = new JSZip();
     for (const size of BUNDLE_SIZES) {
-      const pdf = await buildBundlePdf(st, meta, size);
-      zip.file(`Planner-${size.name}.pdf`, pdf);
+      const pdf = await buildBundlePdf(st, meta, size, niche.key);
+      zip.file(`${niche.keyword.replace(/\s+/g, "-")}-${size.name}.pdf`, pdf);
     }
     const cover = coverThumbnail(st, meta);
-    const mockup = await bundleMockup(st, meta);
-    const grid = previewGrid(st, meta);
+    const mockup = await bundleMockup(st, meta, niche.key);
+    const grid = previewGrid(st, meta, niche.key);
     zip.file("cover-thumbnail.png", cover);
     zip.file("listing-mockup.png", mockup);
     zip.file("listing-pages-preview.png", grid);
 
+    const pages = pageCount(niche.key);
     const listingTxt = [
-      `[PRODUCT TITLE]\n${kit.productTitle}`,
+      `[NICHE] ${niche.keyword}`,
+      `[ETSY TITLE]\n${kit.productTitle}`,
       `[SEO TITLE]\n${kit.seoTitle}`,
       `[CATEGORY]\n${kit.category}`,
       `[MATERIALS]\n${kit.materials}`,
-      `[TAGS]\n${kit.tags.join(", ")}`,
+      `[13 TAGS]\n${kit.tags.join(", ")}`,
       `[DESCRIPTION]\n${kit.description}`,
-      `[FILE LIST]\n${BUNDLE_SIZES.map((s) => `- Planner-${s.name}.pdf (${pageCount()} pages)`).join("\n")}\n- cover-thumbnail.png\n- mockup-preview.png`,
-      `[INSTANT DOWNLOAD]\n${kit.downloadInstructions || "After purchase, download the ZIP from your Etsy account > Purchases. Print at home or at a print shop. No physical item is shipped."}`,
-      `[STYLE] ${st.name} · ${pageCount()} pages`,
-      `[QUALITY SCORE] ${Math.max(95, kit.commercialScore)} / 100`,
+      `[PRODUCT FEATURES]\n${(kit.features || []).map((f) => "• " + f).join("\n")}`,
+      `[TARGET CUSTOMER]\n${kit.targetCustomer}`,
+      `[SEO KEYWORDS]\n${(kit.seoKeywords || []).join(", ")}`,
+      `[COMPETITOR ANALYSIS & EDGE]\n${kit.analysis}`,
+      `[FILE LIST]\n${BUNDLE_SIZES.map((s) => `- ${niche.keyword}-${s.name}.pdf (${pages} pages)`).join("\n")}\n- cover-thumbnail.png\n- listing-mockup.png\n- listing-pages-preview.png`,
+      `[INSTANT DOWNLOAD]\n${kit.downloadInstructions}`,
+      `[STYLE] ${st.name} · ${pages} pages · Quality ${Math.max(95, kit.commercialScore)}/100`,
     ].join("\n\n");
     zip.file("ETSY-LISTING.txt", listingTxt);
-    zip.file("LICENSE.txt", "COMMERCIAL USE — PERSONAL LICENSE\n\nThis digital planner is for personal use. You may print unlimited copies for yourself. You may NOT resell, redistribute, or share the digital files. All designs are original.\n\n© " + year);
+    zip.file("LICENSE.txt", `COMMERCIAL/PERSONAL LICENSE\n\nOriginal design. For personal use; print unlimited copies for yourself. Do not resell or redistribute the digital files.\n© ${year}`);
 
     const zipBuf = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 
     return NextResponse.json({
-      kit,
-      style: st.name,
-      pages: pageCount(),
+      kit, niche: niche.label, keyword: niche.keyword, style: st.name, pages,
       coverB64: `data:image/png;base64,${cover.toString("base64")}`,
       mockupB64: `data:image/png;base64,${mockup.toString("base64")}`,
       gridB64: `data:image/png;base64,${grid.toString("base64")}`,

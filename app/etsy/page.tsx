@@ -10,7 +10,13 @@ interface Kit {
   productTitle: string; seoTitle: string; description: string; tags: string[];
   materials: string; category: string; fileList: string[]; downloadInstructions: string;
   commercialScore: number; commercialReason: string;
+  features?: string[]; targetCustomer?: string; seoKeywords?: string[]; analysis?: string;
 }
+const NICHE_OPTS: [string, string][] = [
+  ["", "🎲 랜덤(매번 새 니치)"], ["adhd", "ADHD Planner"], ["budget", "Budget Planner"], ["teacher", "Teacher Planner"],
+  ["content", "Content Creator"], ["etsyseller", "Etsy Seller"], ["smallbiz", "Small Business"], ["fitness", "Fitness"],
+  ["selfcare", "Self Care"], ["anxiety", "Anxiety Journal"], ["student", "Student"], ["wedding", "Wedding"], ["meal", "Meal Planner"],
+];
 
 export default function Etsy() {
   const [type, setType] = useState<Type>("wallart");
@@ -21,6 +27,7 @@ export default function Etsy() {
   const [count, setCount] = useState(6);
   const [cols, setCols] = useState(3);
   const [bundleLang, setBundleLang] = useState("ko"); // 번들 리스팅 언어
+  const [niche, setNiche] = useState(""); // 번들 니치
   const [images, setImages] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -61,7 +68,7 @@ export default function Etsy() {
         if (r.error) throw new Error(r.error);
         setPreviews(r.previews || []); setZip(r.zipB64 || "");
       } else if (type === "planner") {
-        const res = await fetch("/api/etsy/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme, language: bundleLang }) });
+        const res = await fetch("/api/etsy/bundle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ niche, language: bundleLang }) });
         const txt = await res.text();
         let r: any;
         try { r = JSON.parse(txt); }
@@ -139,11 +146,15 @@ export default function Etsy() {
 
         {type === "planner" && (
           <>
-            <input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="콘셉트 (예: minimal beige 2026 life planner)" disabled={loading}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm outline-none focus:border-zinc-500" />
+            <label className="block text-xs text-zinc-400">니치 (검색 수요 타겟)
+              <select value={niche} onChange={(e) => setNiche(e.target.value)} disabled={loading}
+                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-200">
+                {NICHE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </label>
             <div className="flex items-center gap-2">
               <span className="text-xs text-zinc-400">리스팅 언어</span>
-              {[["ko", "한국어"], ["en", "English (Etsy 권장)"]].map(([v, l]) => (
+              {[["en", "English (Etsy 권장)"], ["ko", "한국어"]].map(([v, l]) => (
                 <button key={v} onClick={() => setBundleLang(v)} disabled={loading}
                   className={`rounded-full border px-3 py-1 text-xs ${bundleLang === v ? "border-emerald-500 bg-emerald-500/10 text-emerald-300" : "border-zinc-700 text-zinc-400"}`}>{l}</button>
               ))}
@@ -197,6 +208,10 @@ export default function Etsy() {
               <div className="flex flex-wrap gap-1">{kit.tags.map((t, i) => <span key={i} className="rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-300">{t}</span>)}</div>
             </div>
             <Kv label="설명" v={kit.description} multi />
+            {kit.features && kit.features.length > 0 && <Kv label="제품 특징" v={kit.features.map((f) => "• " + f).join("\n")} multi />}
+            {kit.targetCustomer && <Kv label="타겟 고객" v={kit.targetCustomer} multi />}
+            {kit.seoKeywords && kit.seoKeywords.length > 0 && <Kv label="SEO 키워드" v={kit.seoKeywords.join(", ")} />}
+            {kit.analysis && <Kv label="경쟁 분석 & 차별점" v={kit.analysis} multi />}
             <Kv label="파일 목록" v={kit.fileList.join("\n")} multi />
             <Kv label="다운로드 안내" v={kit.downloadInstructions} multi />
           </div>
