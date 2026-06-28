@@ -7,6 +7,7 @@ interface Sourced {
   supplyPrice: number; deliveryFee: number; freeShip: boolean;
   sellPrice: number; normalPrice: number; marginRate: number;
   inventory: number; origin: string; categoryDome: string; naverCategory: string;
+  categorySource: "map" | "ai" | "none";
   tags: string; description: string; model: string; titleOk: boolean;
 }
 interface Result {
@@ -29,9 +30,11 @@ const THEMES = [
 const won = (n: number) => n.toLocaleString() + "원";
 
 // 누락값이 하나라도 있으면 "등록 가능"으로 표시하지 않는다 (검수용 반자동)
-function readiness(it: Sourced) {
+// AI 추천 카테고리는 사람이 "확인"을 눌러야 충족으로 인정 (자동 등록가능 금지)
+function readiness(it: Sourced, confirmed: Set<string>) {
   const miss: string[] = [];
-  if (!it.naverCategory) miss.push("카테고리");
+  const catOk = !!it.naverCategory && (it.categorySource !== "ai" || confirmed.has(it.no));
+  if (!catOk) miss.push("카테고리");
   if (!it.titleOk) miss.push("상품명(50자)");
   if (!it.sellPrice) miss.push("판매가");
   if (!it.inventory) miss.push("재고");
@@ -67,9 +70,14 @@ export default function Sourcing() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
+  const [confirmed, setConfirmed] = useState<Set<string>>(new Set());
+
+  function toggleConfirm(no: string) {
+    setConfirmed((prev) => { const n = new Set(prev); n.has(no) ? n.delete(no) : n.add(no); return n; });
+  }
 
   async function run() {
-    setLoading(true); setError(""); setResult(null);
+    setLoading(true); setError(""); setResult(null); setConfirmed(new Set());
     try {
       // 직접 검색어를 넣었으면 그걸로, 아니면 선택한 테마로 AI가 검색어 생성
       const body = keyword.trim() ? { keyword, target, useAI } : { theme, target, useAI };
@@ -163,8 +171,8 @@ export default function Sourcing() {
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-zinc-300">
               <span>수집 {result.collected}개</span>
               <span className="text-emerald-400">통과 {result.items.length}개</span>
-              <span className="text-emerald-400">등록가능 {result.items.filter((i) => readiness(i).ready).length}개</span>
-              <span className="text-amber-400">보완필요 {result.items.filter((i) => !readiness(i).ready).length}개</span>
+              <span className="text-emerald-400">등록가능 {result.items.filter((i) => readiness(i, confirmed).ready).length}개</span>
+              <span className="text-amber-400">보완필요 {result.items.filter((i) => !readiness(i, confirmed).ready).length}개</span>
               <span className="text-zinc-500">
                 제외 — 마진 {result.rejected.margin} / 금지어 {result.rejected.banned} / 중복 {result.rejected.dup} / 재고 {result.rejected.stock}
               </span>
@@ -175,6 +183,9 @@ export default function Sourcing() {
                 ⚠ 카테고리 미매핑 {result.unmapped}개 · 원산지 누락 {result.noOrigin}개 — 등록 전 직접 확인하세요.
               </p>
             )}
+            <p className="mt-1 text-xs text-sky-400/80">
+              💡 카테고리 “AI 추천”은 맞는지 보고 <b>“이 카테고리 확인”</b>을 눌러야 등록가능으로 바뀝니다 (자동 인정 안 함).
+            </p>
           </div>
 
           {result.items.length === 0 && (
@@ -183,7 +194,7 @@ export default function Sourcing() {
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {result.items.map((it) => {
-              const r = readiness(it);
+              const r = readiness(it, confirmed);
               return (
               <div key={it.no} className={`rounded-xl border bg-zinc-900/40 p-3 ${r.ready ? "border-zinc-800" : "border-amber-700/50"}`}>
                 <div className={`-mx-3 -mt-3 mb-3 rounded-t-xl px-3 py-1.5 text-[11px] font-semibold ${r.ready ? "bg-emerald-900/40 text-emerald-300" : "bg-amber-900/40 text-amber-300"}`}>
@@ -213,7 +224,16 @@ export default function Sourcing() {
                 <div className="mt-3 space-y-1.5 border-t border-zinc-800 pt-3">
                   <p className="text-[11px] font-semibold text-zinc-400">스마트스토어 등록 입력값 (위→아래 순서대로 복붙)</p>
                   <Field label="카테고리" value={it.naverCategory} />
-                  {!it.naverCategory && <p className="pl-[76px] text-[11px] text-amber-400">미매핑 — 도매매: {it.categoryDome || "-"} (직접 선택)</p>}
+                  {it.categorySource === "ai" && (
+                    <div className="flex items-center gap-2 pl-[76px] text-[11px]">
+                      <span className="text-sky-400">AI 추천 — 확인 필요</span>
+                      <button
+                        onClick={() => toggleConfirm(it.no)}
+                        className={`rounded border px-2 py-0.5 ${confirmed.has(it.no) ? "border-emerald-600 text-emerald-300" : "border-zinc-700 text-zinc-400 hover:text-zinc-200"}`}
+                      >{confirmed.has(it.no) ? "확인됨 ✓" : "이 카테고리 확인"}</button>
+                    </div>
+                  )}
+                  {it.categorySource === "none" && <p className="pl-[76px] text-[11px] text-amber-400">미매핑 — 도매매: {it.categoryDome || "-"} (직접 선택)</p>}
                   <Field label="상품명" value={it.newTitle} />
                   {!it.titleOk && <p className="pl-[76px] text-[11px] text-amber-400">상품명 길이 확인 필요 (50자)</p>}
                   <Field label="판매가" value={String(it.sellPrice)} />

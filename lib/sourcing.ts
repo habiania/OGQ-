@@ -22,6 +22,7 @@ export interface Sourced {
   supplyPrice: number; deliveryFee: number; freeShip: boolean;
   sellPrice: number; normalPrice: number; marginRate: number;
   inventory: number; origin: string; categoryDome: string; naverCategory: string;
+  categorySource: "map" | "ai" | "none";
   tags: string; description: string; model: string; titleOk: boolean;
 }
 
@@ -63,7 +64,8 @@ async function aiRewrite(ai: GoogleGenAI, origTitle: string, kw: string[], catPa
 카테고리: ${catPath}
 규칙: 50자 이내, 핵심키워드 앞쪽. 홍보문구(특가/최저가/무료배송/사은품/이벤트) 금지. 공급사/브랜드명 제거. 키워드 도배 금지.
 또한 상품명에 못 넣은 연관 검색태그 최대 10개, 2~3문장 상품설명, 스토어 전용 모델명(공급사코드 금지)도 생성.
-JSON으로만: {"title":"","tags":["",""],"description":"","model":""}`;
+그리고 이 상품에 맞는 네이버 스마트스토어 카테고리 경로 1개를 추천하라 (예: "생활/건강 > 반려동물 > 강아지 > 간식").
+JSON으로만: {"title":"","tags":["",""],"description":"","model":"","category":""}`;
   for (let i = 0; i < 3; i++) {
     try {
       const res = await ai.models.generateContent({ model: "gemini-2.5-flash", contents: prompt, config: { responseMimeType: "application/json" } });
@@ -73,6 +75,7 @@ JSON으로만: {"title":"","tags":["",""],"description":"","model":""}`;
         tags: (p.tags || []).slice(0, 10).join(", "),
         description: p.description || "",
         model: p.model || "",
+        category: (p.category || "").trim(),
       };
     } catch (e: any) {
       const m = (e?.message || "").toLowerCase();
@@ -181,16 +184,21 @@ export async function runSourcing(opts: SourcingOpts): Promise<SourcingResult> {
     let tags = (detail?.keywordsDome || []).slice(0, 10).join(", ");
     let description = `${newTitle} 상품입니다. 실용적이고 활용도가 높습니다.`;
     let model = `ST-${it.no.slice(-6)}`;
+    let aiCategory = "";
     if (ai) {
       const r = await aiRewrite(ai, it.title, detail?.keywordsDome || [], detail?.categoryPath || "", removeWords);
-      if (r) { newTitle = r.title || newTitle; tags = r.tags || tags; description = r.description || description; model = r.model || model; }
+      if (r) { newTitle = r.title || newTitle; tags = r.tags || tags; description = r.description || description; model = r.model || model; aiCategory = r.category || ""; }
     }
+    // 확정 매핑(map) 우선, 없으면 AI 추천(확인 필요), 그것도 없으면 미매핑(none)
+    const mapped = CATEGORY_MAP[detail?.categoryCode || ""] || "";
+    const naverCategory = mapped || aiCategory;
+    const categorySource: "map" | "ai" | "none" = mapped ? "map" : aiCategory ? "ai" : "none";
     const sourced: Sourced = {
       no: it.no, origTitle: it.title, newTitle, thumb: it.thumb, url: it.url,
       supplyPrice: it.supplyPrice, deliveryFee: it.deliveryFee, freeShip: it.freeShip,
       sellPrice: pr.sell, normalPrice: pr.normal, marginRate: Math.round(pr.rate * 100),
       inventory: detail?.inventory ?? 0, origin: detail?.origin || "", categoryDome: detail?.categoryPath || "",
-      naverCategory: CATEGORY_MAP[detail?.categoryCode || ""] || "",
+      naverCategory, categorySource,
       tags, description, model, titleOk: newTitle.length > 0 && newTitle.length <= 50,
     };
     return { item: sourced };
@@ -201,7 +209,7 @@ export async function runSourcing(opts: SourcingOpts): Promise<SourcingResult> {
   for (const r of results) {
     if ("reject" in r) { rej.stock++; continue; }
     const s = r.item;
-    if (!s.naverCategory) unmapped++;
+    if (s.categorySource === "none") unmapped++;
     if (!s.origin) noOrigin++;
     items.push(s);
   }
