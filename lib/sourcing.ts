@@ -83,22 +83,83 @@ JSON으로만: {"title":"","tags":["",""],"description":"","model":""}`;
   return null;
 }
 
+// 테마 → 기본 검색어 (AI 없을 때 폴백). 위탁판매에 잘 맞는 소형/배송간편 위주.
+export const THEMES: { key: string; label: string; seeds: string[] }[] = [
+  { key: "pet", label: "🐶 반려동물", seeds: ["강아지 장난감", "고양이 사료그릇", "애견 방석", "반려동물 급식기"] },
+  { key: "kitchen", label: "🍳 주방·생활", seeds: ["실리콘 주방용품", "밀폐용기", "주방 정리함", "다용도 수납"] },
+  { key: "car", label: "🚗 차량용품", seeds: ["차량용 거치대", "차량용 정리함", "자동차 방향제", "차량용 청소"] },
+  { key: "interior", label: "🛋️ 인테리어·소품", seeds: ["무드등", "벽 선반", "디퓨저", "인테리어 소품"] },
+  { key: "camping", label: "⛺ 캠핑·아웃도어", seeds: ["캠핑 의자", "캠핑 조명", "휴대용 테이블", "아웃도어 매트"] },
+  { key: "baby", label: "🧸 유아·완구", seeds: ["유아 식판", "아기 목욕용품", "교육 완구", "유아 안전용품"] },
+  { key: "digital", label: "🔌 디지털·악세서리", seeds: ["무선 충전기", "휴대폰 거치대", "케이블 정리", "블루투스 미니"] },
+  { key: "beauty", label: "💆 뷰티·헬스", seeds: ["마사지기", "괄사", "셀프 네일", "두피 브러시"] },
+];
+
+// 동시 실행 수 제한 병렬 map (429/타임아웃 방지)
+async function pmap<T, R>(arr: T[], concurrency: number, fn: (t: T, i: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(arr.length);
+  let idx = 0;
+  async function worker() { while (idx < arr.length) { const i = idx++; out[i] = await fn(arr[i], i); } }
+  await Promise.all(Array.from({ length: Math.min(concurrency, arr.length) }, worker));
+  return out;
+}
+
+// 테마 → 검색어 결정 (AI 있으면 Gemini가 생성, 없으면 시드 사용)
+async function resolveKeywords(ai: GoogleGenAI | null, theme: string): Promise<string[]> {
+  const t = THEMES.find((x) => x.key === theme || x.label.includes(theme));
+  if (ai) {
+    const label = t?.label.replace(/^[^가-힣a-zA-Z]+/, "").trim() || theme;
+    try {
+      const res = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: `도매매에서 떼와 스마트스토어 위탁판매로 올리기 좋은 "${label}" 카테고리의 구체적인 상품 검색어 6개를 뽑아라.
+조건: 마진 잘 남는 소형/경량(배송 간편), 너무 광범위한 단어 말고 실제 검색되는 상품명 위주, 브랜드명 제외.
+JSON으로만: {"keywords":["",""]}`,
+        config: { responseMimeType: "application/json" },
+      });
+      const p = JSON.parse(res.text || "{}");
+      const ks = (p.keywords || []).map((s: any) => String(s).trim()).filter(Boolean).slice(0, 6);
+      if (ks.length) return ks;
+    } catch { /* 폴백 */ }
+  }
+  return t?.seeds || [theme];
+}
+
 export interface SourcingResult {
-  keyword: string; target: number; collected: number;
+  keyword: string; keywordsUsed: string[]; target: number; collected: number;
   rejected: { margin: number; banned: number; dup: number; stock: number };
   unmapped: number; noOrigin: number; aiUsed: boolean;
   items: Sourced[];
 }
 
-export async function runSourcing(keyword: string, target = 12, useAI = true): Promise<SourcingResult> {
-  // 1) 후보 수집 (목표 ×3)
-  const search = await searchSupply(keyword, Math.min(target * 3, 60));
+export interface SourcingOpts { keyword?: string; theme?: string; target?: number; useAI?: boolean }
+
+export async function runSourcing(opts: SourcingOpts): Promise<SourcingResult> {
+  const target = Math.min(Math.max(opts.target || 12, 1), 20);
+  const useAI = opts.useAI !== false;
+  const ai = useAI && process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! }) : null;
+
+  // 0) 검색어 결정 — 직접 입력 우선, 없으면 테마로 AI/시드 생성
+  let keywords: string[];
+  if (opts.keyword && opts.keyword.trim()) keywords = [opts.keyword.trim()];
+  else if (opts.theme) keywords = await resolveKeywords(ai, opts.theme);
+  else throw new Error("검색어 또는 테마를 지정하세요.");
+
+  // 1) 후보 수집 — 키워드별 병렬 검색 후 상품번호로 중복 제거
+  const perKw = keywords.length > 1 ? Math.max(target * 2, 15) : target * 3;
+  const lists = await Promise.all(
+    keywords.map((k) => searchSupply(k, Math.min(perKw, 60)).catch(() => ({ total: 0, items: [] as any[] })))
+  );
+  const seenNo = new Set<string>();
+  const candidates: any[] = [];
+  for (const l of lists) for (const it of l.items) if (!seenNo.has(it.no)) { seenNo.add(it.no); candidates.push(it); }
+
   const rej = { margin: 0, banned: 0, dup: 0, stock: 0 };
 
   // 2) 1차 필터 (가격/마진/금지어/중복) — getItemList 정보만으로
   const seen: string[] = [];
   const passed: any[] = [];
-  for (const it of search.items) {
+  for (const it of candidates) {
     if (BANNED.some((b) => it.title.includes(b))) { rej.banned++; continue; }
     const pr = price(it.supplyPrice, it.deliveryFee);
     if (pr.rate < MIN_MARGIN) { rej.margin++; continue; }
@@ -110,14 +171,11 @@ export async function runSourcing(keyword: string, target = 12, useAI = true): P
   passed.sort((a, b) => b.pr.rate - a.pr.rate);
   const top = passed.slice(0, target);
 
-  // 3) 상위만 상세조회(재고/원산지/카테고리) + 재고 필터 + AI 재작성
-  const ai = useAI && process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! }) : null;
-  const items: Sourced[] = [];
-  let unmapped = 0, noOrigin = 0;
-  for (const { it, pr } of top) {
+  // 3) 상위만 상세조회 + AI 재작성 — 병렬(동시 4개)로 속도 확보
+  const results = await pmap(top, 4, async ({ it, pr }) => {
     let detail;
     try { detail = await getSupplyDetail(it.no); } catch { detail = null; }
-    if (detail && detail.inventory <= 0) { rej.stock++; continue; }
+    if (detail && detail.inventory <= 0) return { reject: "stock" as const };
     const removeWords = [...BANNED, detail?.manufacturer || ""];
     let newTitle = sanitizeTitle(it.title, removeWords);
     let tags = (detail?.keywordsDome || []).slice(0, 10).join(", ");
@@ -126,19 +184,32 @@ export async function runSourcing(keyword: string, target = 12, useAI = true): P
     if (ai) {
       const r = await aiRewrite(ai, it.title, detail?.keywordsDome || [], detail?.categoryPath || "", removeWords);
       if (r) { newTitle = r.title || newTitle; tags = r.tags || tags; description = r.description || description; model = r.model || model; }
-      await new Promise((r) => setTimeout(r, 300));
     }
-    const naverCategory = CATEGORY_MAP[detail?.categoryCode || ""] || "";
-    if (!naverCategory) unmapped++;
-    if (!detail?.origin) noOrigin++;
-    items.push({
+    const sourced: Sourced = {
       no: it.no, origTitle: it.title, newTitle, thumb: it.thumb, url: it.url,
       supplyPrice: it.supplyPrice, deliveryFee: it.deliveryFee, freeShip: it.freeShip,
       sellPrice: pr.sell, normalPrice: pr.normal, marginRate: Math.round(pr.rate * 100),
       inventory: detail?.inventory ?? 0, origin: detail?.origin || "", categoryDome: detail?.categoryPath || "",
-      naverCategory, tags, description, model, titleOk: newTitle.length > 0 && newTitle.length <= 50,
-    });
-  }
+      naverCategory: CATEGORY_MAP[detail?.categoryCode || ""] || "",
+      tags, description, model, titleOk: newTitle.length > 0 && newTitle.length <= 50,
+    };
+    return { item: sourced };
+  });
 
-  return { keyword, target, collected: search.items.length, rejected: rej, unmapped, noOrigin, aiUsed: !!ai, items };
+  const items: Sourced[] = [];
+  let unmapped = 0, noOrigin = 0;
+  for (const r of results) {
+    if ("reject" in r) { rej.stock++; continue; }
+    const s = r.item;
+    if (!s.naverCategory) unmapped++;
+    if (!s.origin) noOrigin++;
+    items.push(s);
+  }
+  // 마진율 높은 순 정렬 유지
+  items.sort((a, b) => b.marginRate - a.marginRate);
+
+  return {
+    keyword: opts.keyword || opts.theme || "", keywordsUsed: keywords, target,
+    collected: candidates.length, rejected: rej, unmapped, noOrigin, aiUsed: !!ai, items,
+  };
 }

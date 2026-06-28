@@ -10,10 +10,21 @@ interface Sourced {
   tags: string; description: string; model: string; titleOk: boolean;
 }
 interface Result {
-  keyword: string; target: number; collected: number;
+  keyword: string; keywordsUsed: string[]; target: number; collected: number;
   rejected: { margin: number; banned: number; dup: number; stock: number };
   unmapped: number; noOrigin: number; aiUsed: boolean; items: Sourced[];
 }
+
+const THEMES = [
+  { key: "pet", label: "🐶 반려동물" },
+  { key: "kitchen", label: "🍳 주방·생활" },
+  { key: "car", label: "🚗 차량용품" },
+  { key: "interior", label: "🛋️ 인테리어" },
+  { key: "camping", label: "⛺ 캠핑" },
+  { key: "baby", label: "🧸 유아·완구" },
+  { key: "digital", label: "🔌 디지털" },
+  { key: "beauty", label: "💆 뷰티·헬스" },
+];
 
 const won = (n: number) => n.toLocaleString() + "원";
 
@@ -49,20 +60,22 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 export default function Sourcing() {
+  const [theme, setTheme] = useState("pet");
   const [keyword, setKeyword] = useState("");
-  const [target, setTarget] = useState(12);
+  const [target, setTarget] = useState(10);
   const [useAI, setUseAI] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
 
   async function run() {
-    if (!keyword.trim()) return;
     setLoading(true); setError(""); setResult(null);
     try {
+      // 직접 검색어를 넣었으면 그걸로, 아니면 선택한 테마로 AI가 검색어 생성
+      const body = keyword.trim() ? { keyword, target, useAI } : { theme, target, useAI };
       const res = await fetch("/api/sourcing", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword, target, useAI }),
+        body: JSON.stringify(body),
       });
       const text = await res.text();
       let data: any;
@@ -81,18 +94,33 @@ export default function Sourcing() {
       <a href="/" className="text-sm text-zinc-500 hover:text-zinc-300">← 홈</a>
       <h1 className="mt-2 text-2xl font-bold">🛒 상품 소싱 (도매매 → 스마트스토어)</h1>
       <p className="mt-1 text-sm text-zinc-400">
-        키워드로 도매매 상품을 수집하고 <b>마진·재고·금지어·중복 필터</b>를 통과한 상품만 골라
+        <b>테마만 고르면 AI가 검색어를 만들어</b> 도매매를 훑고, <b>마진·재고·금지어·중복 필터</b>를 통과한 상품만 골라
         네이버 SEO 상품명·태그·설명·모델명까지 자동 생성합니다. (검수용 — 자동 업로드 없음)
       </p>
 
       <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <span className="text-xs text-zinc-500">테마 선택 (AI가 알아서 상품을 찾아줍니다)</span>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {THEMES.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => { setTheme(t.key); setKeyword(""); }}
+              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                theme === t.key && !keyword.trim()
+                  ? "border-emerald-500 bg-emerald-600/20 text-emerald-200"
+                  : "border-zinc-700 text-zinc-400 hover:border-zinc-500"
+              }`}
+            >{t.label}</button>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="flex-1">
-            <span className="text-xs text-zinc-500">검색 키워드</span>
+            <span className="text-xs text-zinc-500">직접 검색어 (선택 — 입력하면 테마 대신 이걸로)</span>
             <input
               value={keyword} onChange={(e) => setKeyword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && run()}
-              placeholder="예: 강아지 간식"
+              placeholder="비워두면 위 테마로 AI가 검색"
               className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
             />
           </label>
@@ -111,9 +139,9 @@ export default function Sourcing() {
             AI 재작성 (Gemini 무료) — 끄면 규칙기반으로 더 빠름
           </label>
           <button
-            onClick={run} disabled={loading || !keyword.trim()}
+            onClick={run} disabled={loading}
             className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-40"
-          >{loading ? "소싱 중…" : "상품 소싱"}</button>
+          >{loading ? "소싱 중…" : keyword.trim() ? "상품 소싱" : "AI 추천 소싱"}</button>
         </div>
       </div>
 
@@ -127,8 +155,12 @@ export default function Sourcing() {
       {result && (
         <div className="mt-6">
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 text-sm">
+            {result.keywordsUsed && result.keywordsUsed.length > 0 && (
+              <p className="mb-2 text-xs text-zinc-400">
+                🔎 AI가 고른 검색어: <b className="text-zinc-200">{result.keywordsUsed.join(", ")}</b>
+              </p>
+            )}
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-zinc-300">
-              <span>키워드 <b>{result.keyword}</b></span>
               <span>수집 {result.collected}개</span>
               <span className="text-emerald-400">통과 {result.items.length}개</span>
               <span className="text-emerald-400">등록가능 {result.items.filter((i) => readiness(i).ready).length}개</span>
