@@ -17,6 +17,17 @@ interface Result {
 
 const won = (n: number) => n.toLocaleString() + "원";
 
+// 누락값이 하나라도 있으면 "등록 가능"으로 표시하지 않는다 (검수용 반자동)
+function readiness(it: Sourced) {
+  const miss: string[] = [];
+  if (!it.naverCategory) miss.push("카테고리");
+  if (!it.titleOk) miss.push("상품명(50자)");
+  if (!it.sellPrice) miss.push("판매가");
+  if (!it.inventory) miss.push("재고");
+  if (!it.origin) miss.push("원산지");
+  return { ready: miss.length === 0, miss };
+}
+
 function Copy({ text, label = "복사" }: { text: string; label?: string }) {
   const [done, setDone] = useState(false);
   return (
@@ -120,6 +131,8 @@ export default function Sourcing() {
               <span>키워드 <b>{result.keyword}</b></span>
               <span>수집 {result.collected}개</span>
               <span className="text-emerald-400">통과 {result.items.length}개</span>
+              <span className="text-emerald-400">등록가능 {result.items.filter((i) => readiness(i).ready).length}개</span>
+              <span className="text-amber-400">보완필요 {result.items.filter((i) => !readiness(i).ready).length}개</span>
               <span className="text-zinc-500">
                 제외 — 마진 {result.rejected.margin} / 금지어 {result.rejected.banned} / 중복 {result.rejected.dup} / 재고 {result.rejected.stock}
               </span>
@@ -137,8 +150,13 @@ export default function Sourcing() {
           )}
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {result.items.map((it) => (
-              <div key={it.no} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+            {result.items.map((it) => {
+              const r = readiness(it);
+              return (
+              <div key={it.no} className={`rounded-xl border bg-zinc-900/40 p-3 ${r.ready ? "border-zinc-800" : "border-amber-700/50"}`}>
+                <div className={`-mx-3 -mt-3 mb-3 rounded-t-xl px-3 py-1.5 text-[11px] font-semibold ${r.ready ? "bg-emerald-900/40 text-emerald-300" : "bg-amber-900/40 text-amber-300"}`}>
+                  {r.ready ? "✓ 등록 가능" : `⚠ 보완 필요 — ${r.miss.join(", ")} 누락`}
+                </div>
                 <div className="flex gap-3">
                   {it.thumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -167,9 +185,11 @@ export default function Sourcing() {
                   <Field label="상품명" value={it.newTitle} />
                   {!it.titleOk && <p className="pl-[76px] text-[11px] text-amber-400">상품명 길이 확인 필요 (50자)</p>}
                   <Field label="판매가" value={String(it.sellPrice)} />
+                  {!it.sellPrice && <p className="pl-[76px] text-[11px] text-amber-400">판매가 누락 — 직접 책정</p>}
                   <Field label="정상가" value={String(it.normalPrice)} />
                   <p className="pl-[76px] text-[11px] text-zinc-600">정상가 입력 후 즉시할인으로 판매가 만들기</p>
                   <Field label="재고수량" value={String(it.inventory)} />
+                  {!it.inventory && <p className="pl-[76px] text-[11px] text-amber-400">재고 누락 — 도매매 상세에서 직접 확인</p>}
                   <Field label="대표이미지" value={it.thumb} />
                   <Field label="상세설명" value={it.description} />
                   <Field label="모델명" value={it.model} />
@@ -179,7 +199,8 @@ export default function Sourcing() {
                   <Field label="배송비" value={it.freeShip ? "0" : String(it.deliveryFee)} />
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {result.items.length > 0 && (
