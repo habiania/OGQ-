@@ -11,3 +11,9 @@ _*.mjs
 _*.png
 _*.gif
 _*.pdf
+
+# sourcing (Python)
+*.db
+review_*.html
+venv/
+__pycache__/
