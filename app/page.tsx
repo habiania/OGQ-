@@ -38,6 +38,13 @@ const TOOLS: Tool[] = [
     desc: "주제 → AI 문구 → 명언 포스터·인용구 카드 자동 디자인 → ZIP 다운로드",
     status: "ready",
   },
+  {
+    href: "/sourcing",
+    icon: "📦",
+    title: "AI 상품 소싱",
+    desc: "키워드 → 도매매 수집 → 마진·재고·금지어·중복 필터 → 네이버 SEO 상품명/태그/설명 자동 생성",
+    status: "ready",
+  },
 ];
 
 export default function Hub() {

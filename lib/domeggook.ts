@@ -43,3 +43,37 @@ export async function searchSupply(keyword: string, size = 12): Promise<SupplySe
   });
   return { total: header?.numberOfItems || items.length, items };
 }
+
+export interface SupplyDetail {
+  inventory: number;
+  origin: string;        // detail.country
+  manufacturer: string;
+  categoryPath: string;  // 도매매 카테고리 경로
+  categoryCode: string;
+  status: string;        // 판매상태
+  keywordsDome: string[];// basis.keywords.kw
+}
+
+// 상품 상세 (재고/원산지/카테고리/키워드) — 필터 통과 상위 상품에만 호출
+export async function getSupplyDetail(no: string): Promise<SupplyDetail> {
+  const key = process.env.DOMEGGOOK_API_KEY;
+  if (!key) throw new Error("도매매 API 키가 없습니다.");
+  const res = await fetch(`${BASE}?ver=4.4&mode=getItemView&aid=${key}&no=${no}&om=json`);
+  const j = await res.json();
+  if (j.errors) throw new Error(`도매매 상세 실패: ${j.errors.message || j.errors.dmessage}`);
+  const d = j.domeggook || j;
+  const cat = d.category || {};
+  const parents = (cat.parents?.elem || []).map((e: any) => e.name).filter(Boolean);
+  const curName = cat.current?.name;
+  const path = [...parents, ...(curName ? [curName] : [])].filter(Boolean).join(" > ");
+  const kw = d.basis?.keywords?.kw;
+  return {
+    inventory: parseInt(d.qty?.inventory || "0", 10) || 0,
+    origin: d.detail?.country || "",
+    manufacturer: d.detail?.manufacturer || "",
+    categoryPath: path,
+    categoryCode: cat.current?.code || "",
+    status: d.basis?.status || "",
+    keywordsDome: Array.isArray(kw) ? kw : [],
+  };
+}
