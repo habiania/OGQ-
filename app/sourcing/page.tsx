@@ -30,7 +30,7 @@ function Copy({ text, label = "복사" }: { text: string; label?: string }) {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start gap-2">
-      <span className="w-14 shrink-0 text-[11px] text-zinc-500 pt-0.5">{label}</span>
+      <span className="w-[68px] shrink-0 text-[11px] text-zinc-500 pt-0.5">{label}</span>
       <span className="flex-1 text-sm text-zinc-200 break-words">{value || <span className="text-zinc-600">-</span>}</span>
       {value ? <Copy text={value} /> : null}
     </div>
@@ -161,14 +161,22 @@ export default function Sourcing() {
                 </div>
 
                 <div className="mt-3 space-y-1.5 border-t border-zinc-800 pt-3">
-                  <Field label="상품명" value={it.newTitle} />
-                  {!it.titleOk && <p className="pl-16 text-[11px] text-amber-400">상품명 길이 확인 필요</p>}
-                  <Field label="태그" value={it.tags} />
-                  <Field label="설명" value={it.description} />
-                  <Field label="모델명" value={it.model} />
+                  <p className="text-[11px] font-semibold text-zinc-400">스마트스토어 등록 입력값 (위→아래 순서대로 복붙)</p>
                   <Field label="카테고리" value={it.naverCategory} />
-                  {!it.naverCategory && <p className="pl-16 text-[11px] text-amber-400">도매매: {it.categoryDome || "-"} (미매핑)</p>}
+                  {!it.naverCategory && <p className="pl-[76px] text-[11px] text-amber-400">미매핑 — 도매매: {it.categoryDome || "-"} (직접 선택)</p>}
+                  <Field label="상품명" value={it.newTitle} />
+                  {!it.titleOk && <p className="pl-[76px] text-[11px] text-amber-400">상품명 길이 확인 필요 (50자)</p>}
+                  <Field label="판매가" value={String(it.sellPrice)} />
+                  <Field label="정상가" value={String(it.normalPrice)} />
+                  <p className="pl-[76px] text-[11px] text-zinc-600">정상가 입력 후 즉시할인으로 판매가 만들기</p>
+                  <Field label="재고수량" value={String(it.inventory)} />
+                  <Field label="대표이미지" value={it.thumb} />
+                  <Field label="상세설명" value={it.description} />
+                  <Field label="모델명" value={it.model} />
                   <Field label="원산지" value={it.origin} />
+                  {!it.origin && <p className="pl-[76px] text-[11px] text-amber-400">원산지 누락 — 도매매 상세에서 직접 확인</p>}
+                  <Field label="검색태그" value={it.tags} />
+                  <Field label="배송비" value={it.freeShip ? "0" : String(it.deliveryFee)} />
                 </div>
               </div>
             ))}
