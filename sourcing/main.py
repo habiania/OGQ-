@@ -12,6 +12,7 @@
 import argparse
 import json
 import math
+import os
 import re
 import sqlite3
 import sys
@@ -409,6 +410,141 @@ def rewrite(force_rule: bool = False):
     print("다음 단계: python main.py build (검수 HTML) — 확인 후 진행")
 
 
+# ---------------- 4단계: 카테고리 매핑 + 검수 HTML ----------------
+def load_category_map() -> dict:
+    import csv
+    m = {}
+    try:
+        with open(config.CATEGORY_MAP_FILE, encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                if row.get("dome_code"):
+                    m[row["dome_code"].strip()] = row.get("naver_category", "").strip()
+    except FileNotFoundError:
+        pass
+    return m
+
+
+REVIEW_TEMPLATE = """<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>검수 대시보드 {{ date }}</title>
+<style>
+ *{box-sizing:border-box} body{margin:0;font-family:-apple-system,'Malgun Gothic',sans-serif;background:#f4f5f7;color:#222}
+ .wrap{max-width:1200px;margin:0 auto;padding:24px}
+ h1{font-size:22px;margin:0 0 4px} .sub{color:#666;font-size:13px;margin-bottom:16px}
+ .summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+ .stat{background:#fff;border:1px solid #e3e3e6;border-radius:12px;padding:12px 18px;min-width:120px}
+ .stat b{display:block;font-size:24px} .stat.warn b{color:#d33}
+ .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+ .card{background:#fff;border:1px solid #e3e3e6;border-radius:14px;overflow:hidden}
+ .card img{width:100%;height:200px;object-fit:cover;background:#eee}
+ .card .body{padding:12px}
+ .title{font-size:14px;font-weight:700;line-height:1.4;min-height:38px}
+ .meta{font-size:12px;color:#666;margin:6px 0}
+ .margin{color:#0a8a4a;font-weight:700}
+ .btn{display:block;width:100%;margin-top:8px;padding:9px;border:0;border-radius:8px;background:#3b6ef5;color:#fff;font-weight:700;cursor:pointer}
+ details>summary{list-style:none} details[open] .btn{background:#555}
+ .fields{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+ .f label{display:block;font-size:11px;color:#888;margin-bottom:3px}
+ .box{display:flex;gap:6px;align-items:flex-start}
+ .box pre{flex:1;margin:0;padding:8px;background:#f3f4f6;border:1px solid #e3e3e6;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-all;font-family:inherit}
+ .copy{flex:none;padding:8px 10px;border:1px solid #cfd3da;border-radius:8px;background:#fff;font-size:11px;cursor:pointer}
+ .red{color:#d33;font-weight:700} .links{margin-top:8px;font-size:12px} .links a{color:#3b6ef5;margin-right:10px}
+</style></head><body><div class="wrap">
+ <h1>🧾 도매매 → 스마트스토어 검수 대시보드</h1>
+ <div class="sub">{{ date }} · 자동 업로드 없음 (검수용)</div>
+ <div class="summary">
+  <div class="stat"><b>{{ items|length }}</b>오늘 등록 추천</div>
+  <div class="stat {{ 'warn' if unmapped else '' }}"><b>{{ unmapped }}</b>카테고리 미매핑</div>
+  <div class="stat {{ 'warn' if no_origin else '' }}"><b>{{ no_origin }}</b>원산지 누락</div>
+ </div>
+ <div class="grid">
+ {% for p in items %}
+  <div class="card">
+   <img src="{{ p.image_url }}" alt="" loading="lazy">
+   <div class="body">
+    <div class="title">{{ p.new_title }}</div>
+    <div class="meta">마진율 <span class="margin">{{ p.margin_pct }}%</span> · 판매 {{ "{:,}".format(p.sell_price) }}원 · 재고 {{ p.inventory }}</div>
+    <details><summary><div class="btn">상품등록방법 ▾</div></summary>
+     <div class="fields">
+      {{ field("적정 카테고리(네이버)", p.naver_category if p.naver_category else "⚠ 미매핑 - 수동 지정 필요", not p.naver_category) }}
+      {{ field("상품명", p.new_title) }}
+      {{ field("정상가", "{:,}".format(p.normal_price) ~ "원") }}
+      {{ field("판매가", "{:,}".format(p.sell_price) ~ "원") }}
+      {{ field("배송비", "무료배송" if p.free_shipping else ("{:,}".format(p.delivery_fee) ~ "원 (" ~ (p.delivery_type or "유료") ~ ")")) }}
+      {{ field("검색태그", p.search_tags) }}
+      {{ field("디스크립션", p.description) }}
+      {{ field("모델명", p.model_name) }}
+      {{ field("원산지", p.origin if p.origin else "⚠ 원산지 누락 - 확인 필요", not p.origin) }}
+      {{ field("상품번호(도매매)", p.item_no) }}
+     </div>
+     <div class="links">
+      <a href="{{ p.image_url }}" target="_blank" rel="noreferrer">이미지 원본 ↗</a>
+      <a href="{{ p.dome_url }}" target="_blank" rel="noreferrer">도매매 상세 ↗</a>
+      <span style="color:#999">(이미지·상세는 수동 가공)</span>
+     </div>
+    </details>
+   </div>
+  </div>
+ {% endfor %}
+ </div>
+</div>
+<script>
+ function copyText(btn){var v=btn.getAttribute('data-v');navigator.clipboard.writeText(v).then(function(){var o=btn.textContent;btn.textContent='복사됨';setTimeout(function(){btn.textContent=o;},1200);});}
+</script></body></html>"""
+
+
+def _field_macro(label, value, warn=False):
+    from markupsafe import escape
+    val = "" if value is None else str(value)
+    cls = "box"
+    pre_cls = "red" if warn else ""
+    return (f'<div class="f"><label>{escape(label)}</label><div class="{cls}">'
+            f'<pre class="{pre_cls}">{escape(val)}</pre>'
+            f'<button class="copy" data-v="{escape(val)}" onclick="copyText(this)">복사</button></div></div>')
+
+
+def build():
+    try:
+        from jinja2 import Environment
+    except ImportError:
+        sys.exit("jinja2 가 필요합니다: pip install jinja2")
+    cat_map = load_category_map()
+    conn = db()
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT * FROM products WHERE recommended=1 ORDER BY margin_rate DESC").fetchall()
+    if not rows:
+        rows = conn.execute("SELECT * FROM products WHERE passed=1 ORDER BY margin_rate DESC").fetchall()
+    conn.close()
+    if not rows:
+        print("표시할 상품이 없습니다. collect→filter→rewrite 를 먼저 실행하세요.")
+        return
+
+    items, unmapped, no_origin = [], 0, 0
+    for r in rows:
+        d = dict(r)
+        d["naver_category"] = cat_map.get(r["category_code"] or "", "")
+        if not d["naver_category"]:
+            unmapped += 1
+        if not r["origin"]:
+            no_origin += 1
+        d["margin_pct"] = int((r["margin_rate"] or 0) * 100)
+        d["new_title"] = r["new_title"] or r["orig_title"]
+        items.append(d)
+
+    env = Environment(autoescape=True)
+    env.globals["field"] = lambda label, value, warn=False: __import__("markupsafe").Markup(_field_macro(label, value, warn))
+    html = env.from_string(REVIEW_TEMPLATE).render(
+        date=datetime.now().strftime("%Y-%m-%d"), items=items, unmapped=unmapped, no_origin=no_origin,
+    )
+    out = f"review_{datetime.now().strftime('%Y%m%d')}.html"
+    path = os.path.join(os.path.dirname(__file__), out)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"[완료] {out} 생성 ({len(items)}개 상품)")
+    print(f"  경고 - 카테고리 미매핑 {unmapped}, 원산지 누락 {no_origin}")
+    print(f"  파일: {path}  (브라우저로 열기)")
+
+
 def show(recommended_only: bool = False):
     conn = db()
     conn.row_factory = sqlite3.Row
@@ -453,7 +589,7 @@ def main():
     elif args.cmd == "rewrite":
         rewrite(args.rule)
     elif args.cmd == "build":
-        print("'build'(검수 HTML) 단계는 다음에 구현합니다.")
+        build()
     else:
         ap.print_help()
 

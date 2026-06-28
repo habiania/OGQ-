@@ -3,11 +3,19 @@
 도매매(도매꾹) 오픈 API로 상품을 수집 → 필터 → 네이버 SEO 상품명 재작성 →
 **검수용 정적 HTML 대시보드**로 출력하는 파이프라인. (자동 업로드 없음 — 검수까지만)
 
-## 단계
-1. **수집(collect)** ✅ 구현됨 — 도매매 상품을 SQLite에 저장
-2. 필터(filter) — 마진/재고/금지키워드/중복 (다음 단계)
-3. 상품명 재작성(rewrite) — 네이버 SEO 규칙 (다음 단계)
-4. 검수 HTML(build) — `review_YYYYMMDD.html` (다음 단계)
+## 단계 (전부 구현 완료 ✅)
+1. **수집(collect)** — 도매매 상품 → SQLite
+2. **필터(filter)** — 마진/재고/금지키워드/유사중복 제외 → 마진율 상위 추천
+3. **재작성(rewrite)** — 네이버 SEO 상품명+태그+설명+모델명 (Gemini 무료 + 규칙기반)
+4. **검수 HTML(build)** — `review_YYYYMMDD.html` (정적, 복사버튼, 카테고리 매핑)
+
+## 전체 실행 (한 번에)
+```bash
+python main.py collect --kw "강아지 간식" --target 60
+python main.py filter
+python main.py rewrite          # Gemini(무료). --rule 로 규칙기반만
+python main.py build            # review_YYYYMMDD.html 생성 → 브라우저로 열기
+```
 
 ## 설치
 ```bash
