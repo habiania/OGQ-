@@ -16,9 +16,16 @@ PER_PAGE = 50              # 도매매 getItemList 페이지당 개수
 
 # ---- 가격/마진 ----
 FEE_RATE = 0.06               # 판매 수수료율 (예: 스마트스토어 6%)
-TARGET_MARGIN_RATE = 0.30     # 목표 마진율 (판매가 책정)
+TARGET_MARGIN_RATE = 0.30     # 목표 마진율 ("margin" 방식 판매가 책정에 사용)
 NORMAL_PRICE_MULTIPLIER = 3.0 # 정상가 = 도매가 × 배수 (할인 연출용)
-# 판매가 = (도매가 + 배송비) / (1 - 수수료율 - 목표마진율), 100원 단위 반올림
+
+# 판매가 책정 방식: "multiplier"(도매가×배수) 또는 "margin"(목표마진 역산)
+PRICING_METHOD = "multiplier"
+SELL_MULTIPLIER = 2.5         # "multiplier" 방식: 판매가 = 도매가 × 배수
+
+# ---- 필터 ----
+MIN_MARGIN_RATE = 0.25        # 이 마진율 미만은 제외
+DEDUP_SIMILARITY = 0.85       # 상품명 유사도 이 값 이상이면 중복으로 간주
 
 # ---- 경로 ----
 DB_PATH = os.path.join(os.path.dirname(__file__), "sourcing.db")
