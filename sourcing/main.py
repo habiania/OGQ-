@@ -83,6 +83,10 @@ EXTRA_COLS = {
     "sell_price": "INTEGER", "normal_price": "INTEGER", "fee_amount": "INTEGER",
     "margin": "INTEGER", "margin_rate": "REAL", "free_shipping": "INTEGER",
     "passed": "INTEGER", "recommended": "INTEGER", "reject_reason": "TEXT",
+    # 3단계(재작성) + 6/7/8
+    "new_title": "TEXT", "title_len": "INTEGER", "title_ok": "INTEGER",
+    "search_tags": "TEXT", "description": "TEXT", "model_name": "TEXT",
+    "naver_category": "TEXT",
 }
 
 
@@ -317,6 +321,94 @@ def filter_products():
     print("다음 단계: python main.py rewrite (상품명 재작성) — 확인 후 진행")
 
 
+# ---------------- 3단계: 상품명 재작성 (+태그/디스크립션/모델명) ----------------
+def sanitize_title(t: str, remove_words: list[str]) -> str:
+    """네이버 SEO 하드 규칙 강제: 공급사/홍보어 제거, 허용 특수문자만, 중복단어 제거, 50자."""
+    t = t or ""
+    for w in remove_words:
+        if w:
+            t = re.sub(re.escape(w), " ", t, flags=re.IGNORECASE)
+    t = "".join(ch for ch in t if ch.isalnum() or ch in config.ALLOWED_TITLE_CHARS)
+    words, seen, out = t.split(), set(), []
+    for w in words:
+        lw = w.lower()
+        if lw and lw not in seen:
+            seen.add(lw)
+            out.append(w)
+    t = re.sub(r"\s+", " ", " ".join(out)).strip()
+    if len(t) > config.TITLE_MAX_LEN:
+        cut = t[:config.TITLE_MAX_LEN]
+        t = cut[:cut.rfind(" ")] if " " in cut else cut
+    return t.strip()
+
+
+def gemini_json(prompt: str) -> dict:
+    key = config.GEMINI_API_KEY
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
+    body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}}
+    last = None
+    for attempt in range(4):  # 429(레이트리밋) 점증 재시도
+        r = requests.post(url, json=body, timeout=40)
+        if r.status_code == 429:
+            last = "429 rate limit"
+            time.sleep(3 * (attempt + 1))
+            continue
+        r.raise_for_status()
+        txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(txt)
+    raise RuntimeError(last or "Gemini 호출 실패")
+
+
+def rewrite(force_rule: bool = False):
+    use_gemini = bool(config.GEMINI_API_KEY) and not force_rule
+    promo = load_banned()
+    conn = db()
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT * FROM products WHERE passed=1 ORDER BY recommended DESC, margin_rate DESC").fetchall()
+    if not rows:
+        print("통과 상품이 없습니다. 먼저 'python main.py filter'.")
+        return
+    print(f"[재작성] {len(rows)}개 · 방식={'Gemini(무료)' if use_gemini else '규칙기반'}")
+    for i, r in enumerate(rows, 1):
+        orig = r["orig_title"] or ""
+        remove_words = promo + [r["manufacturer"] or ""]
+        title = tags = desc = model = ""
+        if use_gemini:
+            try:
+                kw = ", ".join(json.loads(r["dome_keywords"] or "[]")[:10])
+                prompt = (
+                    "너는 네이버 스마트스토어 SEO 전문가다. 아래 도매 원본 상품명을 네이버 규칙에 맞게 재작성하라.\n"
+                    f"원본: {orig}\n참고 키워드: {kw}\n카테고리: {r['category_dome']}\n\n"
+                    "규칙: 50자 이내, 핵심키워드를 앞쪽에. 홍보문구(특가/최저가/무료배송/사은품/이벤트) 금지. "
+                    "공급사/브랜드명 제거. 키워드 도배 금지. 구조=핵심키워드+세부키워드+핵심속성.\n"
+                    "또한 상품명에 못 넣은 연관 검색태그 최대 10개, 2~3문장 상품 설명, 스토어 전용 모델명(공급사코드 금지)도 생성.\n"
+                    'JSON으로만: {"title":"","tags":["",""],"description":"","model":""}'
+                )
+                p = gemini_json(prompt)
+                title = sanitize_title(p.get("title", orig), remove_words)
+                tags = ", ".join((p.get("tags") or [])[:10])
+                desc = p.get("description", "")
+                model = p.get("model", "")
+            except Exception as e:
+                print(f"  [{i}] Gemini 실패 → 규칙기반 ({e})")
+        if not title:  # 규칙기반(기본/폴백)
+            title = sanitize_title(orig, remove_words)
+            tags = ", ".join(json.loads(r["dome_keywords"] or "[]")[:10])
+            desc = f"{title} 상품입니다. 실용적이고 활용도가 높습니다."
+            model = f"ST-{(r['item_no'] or '')[-6:]}"
+        ok = 1 if (0 < len(title) <= config.TITLE_MAX_LEN) else 0
+        conn.execute(
+            "UPDATE products SET new_title=?, title_len=?, title_ok=?, search_tags=?, description=?, model_name=? WHERE item_no=?",
+            (title, len(title), ok, tags, desc, model, r["item_no"]),
+        )
+        print(f"  [{i}/{len(rows)}] {orig[:22]} → {title} ({len(title)}자)")
+        if use_gemini:
+            time.sleep(0.3)
+    conn.commit()
+    conn.close()
+    print("다음 단계: python main.py build (검수 HTML) — 확인 후 진행")
+
+
 def show(recommended_only: bool = False):
     conn = db()
     conn.row_factory = sqlite3.Row
@@ -346,8 +438,10 @@ def main():
     sp = sub.add_parser("show", help="상품 요약 출력")
     sp.add_argument("--rec", action="store_true", help="오늘 등록 추천만 보기")
 
-    for name in ("filter", "rewrite", "build"):
-        sub.add_parser(name, help=f"(다음 단계) {name}")
+    sub.add_parser("filter", help="2단계: 필터 + 가격 산출")
+    rw = sub.add_parser("rewrite", help="3단계: 상품명/태그/설명/모델명 재작성")
+    rw.add_argument("--rule", action="store_true", help="Gemini 대신 규칙기반만 사용")
+    sub.add_parser("build", help="4단계: 검수 HTML (다음 단계)")
 
     args = ap.parse_args()
     if args.cmd == "collect":
@@ -356,8 +450,10 @@ def main():
         show(args.rec)
     elif args.cmd == "filter":
         filter_products()
-    elif args.cmd in ("rewrite", "build"):
-        print(f"'{args.cmd}' 단계는 아직 구현 전입니다. 순서대로 진행합니다.")
+    elif args.cmd == "rewrite":
+        rewrite(args.rule)
+    elif args.cmd == "build":
+        print("'build'(검수 HTML) 단계는 다음에 구현합니다.")
     else:
         ap.print_help()
 

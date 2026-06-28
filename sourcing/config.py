@@ -6,7 +6,11 @@ load_dotenv()
 
 # ---- 비밀키 (.env) ----
 DOMEGGOOK_API_KEY = os.getenv("DOMEGGOOK_API_KEY", "")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")  # 3단계 AI 재작성(무료)
+
+# 허용 특수문자 (네이버 SEO)
+ALLOWED_TITLE_CHARS = "()-·[]/&+,~. "
+TITLE_MAX_LEN = 50
 
 # ---- 수집 ----
 SEARCH_KEYWORD = os.getenv("SEARCH_KEYWORD", "강아지 간식")  # 쉼표로 여러 키워드
